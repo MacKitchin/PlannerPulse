@@ -3,6 +3,7 @@ Database models for Planner Pulse newsletter system
 """
 
 import os
+from pathlib import Path
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
@@ -200,7 +201,19 @@ class SystemSettings(Base):
 # Database setup and utilities
 def get_database_url():
     """Get database URL from environment"""
-    return os.environ.get('DATABASE_URL', 'postgresql://localhost/planner_pulse')
+    env_url = os.environ.get('DATABASE_URL')
+    if env_url:
+        return env_url
+
+    default_db_path = Path('data') / 'planner_pulse.db'
+    try:
+        default_db_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Directory may already exist or creation may fail in restricted environments,
+        # but we still fall back to the SQLite URL.
+        pass
+
+    return f"sqlite:///{default_db_path.resolve()}"
 
 def create_engine_instance():
     """Create SQLAlchemy engine"""
