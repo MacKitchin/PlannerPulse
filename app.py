@@ -72,7 +72,6 @@ app = Flask(__name__)
 # Secure secret key handling
 secret_key = os.environ.get('SECRET_KEY')
 if not secret_key:
-    import secrets
     secret_key = secrets.token_hex(32)
     logger.warning("No SECRET_KEY environment variable found. Generated a random key for this session. "
                    "For production, set the SECRET_KEY environment variable to a secure random value.")
@@ -171,32 +170,32 @@ def api_stats():
     try:
         config = load_config()
         
-        # Initialize database managers
-        article_manager = DatabaseArticleManager()
-        sponsor_manager = DatabaseSponsorManager()
-        newsletter_manager = DatabaseNewsletterManager()
-        
-        # Get database statistics
-        article_stats = article_manager.get_stats()
-        sponsor_stats = sponsor_manager.get_sponsor_stats()
-        newsletter_stats = newsletter_manager.get_newsletter_stats()
-        
-        stats = {
-            'total_processed': article_stats.get('total_articles', 0),
-            'total_sponsors': sponsor_stats.get('total_sponsors', 0),
-            'current_sponsor': sponsor_manager.get_current_sponsor(),
-            'rss_sources': len(config.get("sources", [])),
-            'last_generated': None,
-            'articles_today': article_stats.get('articles_today', 0),
-            'newsletters_today': newsletter_stats.get('newsletters_today', 0),
-            'total_newsletters': newsletter_stats.get('total_newsletters', 0)
-        }
-        
-        if os.path.exists('output/newsletter.html'):
-            stat = os.stat('output/newsletter.html')
-            stats['last_generated'] = datetime.fromtimestamp(stat.st_mtime).isoformat()
-        
-        return jsonify(stats)
+        # Initialize database managers with context managers
+        with DatabaseArticleManager() as article_manager, \
+             DatabaseSponsorManager() as sponsor_manager, \
+             DatabaseNewsletterManager() as newsletter_manager:
+            
+            # Get database statistics
+            article_stats = article_manager.get_stats()
+            sponsor_stats = sponsor_manager.get_sponsor_stats()
+            newsletter_stats = newsletter_manager.get_newsletter_stats()
+            
+            stats = {
+                'total_processed': article_stats.get('total_articles', 0),
+                'total_sponsors': sponsor_stats.get('total_sponsors', 0),
+                'current_sponsor': sponsor_manager.get_current_sponsor(),
+                'rss_sources': len(config.get("sources", [])),
+                'last_generated': None,
+                'articles_today': article_stats.get('articles_today', 0),
+                'newsletters_today': newsletter_stats.get('newsletters_today', 0),
+                'total_newsletters': newsletter_stats.get('total_newsletters', 0)
+            }
+            
+            if os.path.exists('output/newsletter.html'):
+                stat = os.stat('output/newsletter.html')
+                stats['last_generated'] = datetime.fromtimestamp(stat.st_mtime).isoformat()
+            
+            return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         return jsonify({'error': str(e)}), 500
@@ -205,13 +204,13 @@ def api_stats():
 def reset_article_history():
     """Reset article history (for testing) - database version"""
     try:
-        article_manager = DatabaseArticleManager()
-        # Clear all articles from database
-        from models import Article
-        article_manager.session.query(Article).delete()
-        article_manager.session.commit()
-        flash('Article history reset successfully!', 'success')
-        return jsonify({'success': True})
+        with DatabaseArticleManager() as article_manager:
+            # Clear all articles from database
+            from models import Article
+            article_manager.session.query(Article).delete()
+            article_manager.session.commit()
+            flash('Article history reset successfully!', 'success')
+            return jsonify({'success': True})
     except Exception as e:
         logger.error(f"Error resetting history: {e}")
         return jsonify({'error': str(e)}), 500
@@ -220,14 +219,14 @@ def reset_article_history():
 def rotate_sponsor():
     """Manually rotate to next sponsor - database version"""
     try:
-        sponsor_manager = DatabaseSponsorManager()
-        new_sponsor = sponsor_manager.rotate_sponsor()
-        if new_sponsor:
-            flash(f'Rotated to sponsor: {new_sponsor.get("name", "None")}', 'success')
-            return jsonify({'success': True, 'sponsor': new_sponsor})
-        else:
-            flash('Rotated sponsor, but no active sponsor found to rotate to.', 'warning')
-            return jsonify({'success': True, 'sponsor': None})
+        with DatabaseSponsorManager() as sponsor_manager:
+            new_sponsor = sponsor_manager.rotate_sponsor()
+            if new_sponsor:
+                flash(f'Rotated to sponsor: {new_sponsor.get("name", "None")}', 'success')
+                return jsonify({'success': True, 'sponsor': new_sponsor})
+            else:
+                flash('Rotated sponsor, but no active sponsor found to rotate to.', 'warning')
+                return jsonify({'success': True, 'sponsor': None})
     except Exception as e:
         logger.error(f"Error rotating sponsor: {e}")
         return jsonify({'error': str(e)}), 500
@@ -260,8 +259,8 @@ def add_rss_source():
                 json.dump(config, f, indent=2)
                 
             # Also add to database
-            rss_manager = DatabaseRSSManager()
-            rss_manager.add_source(url)
+            with DatabaseRSSManager() as rss_manager:
+                rss_manager.add_source(url)
             
             flash(f'Added RSS source: {url}', 'success')
             return jsonify({'success': True})
@@ -299,8 +298,8 @@ def remove_rss_source():
                 json.dump(config, f, indent=2)
                 
             # Also remove from database
-            rss_manager = DatabaseRSSManager()
-            rss_manager.deactivate_source(url)
+            with DatabaseRSSManager() as rss_manager:
+                rss_manager.deactivate_source(url)
             
             flash(f'Removed RSS source: {url}', 'success')
             return jsonify({'success': True})
@@ -358,8 +357,8 @@ def add_sponsor():
             json.dump(config, f, indent=2)
             
         # Also add to database
-        sponsor_manager = DatabaseSponsorManager()
-        sponsor_manager.add_sponsor(new_sponsor)
+        with DatabaseSponsorManager() as sponsor_manager:
+            sponsor_manager.add_sponsor(new_sponsor)
         
         flash(f'Added sponsor: {name}', 'success')
         return jsonify({'success': True})
@@ -396,8 +395,8 @@ def remove_sponsor():
             json.dump(config, f, indent=2)
             
         # Also remove from database
-        sponsor_manager = DatabaseSponsorManager()
-        sponsor_manager.deactivate_sponsor(name)
+        with DatabaseSponsorManager() as sponsor_manager:
+            sponsor_manager.deactivate_sponsor(name)
         
         flash(f'Removed sponsor: {name}', 'success')
         return jsonify({'success': True})
@@ -432,11 +431,11 @@ def toggle_sponsor():
                     json.dump(config, f, indent=2)
                     
                 # Also update in database
-                sponsor_manager = DatabaseSponsorManager()
-                if sponsor['active']:
-                    sponsor_manager.activate_sponsor(name)
-                else:
-                    sponsor_manager.deactivate_sponsor(name)
+                with DatabaseSponsorManager() as sponsor_manager:
+                    if sponsor['active']:
+                        sponsor_manager.activate_sponsor(name)
+                    else:
+                        sponsor_manager.deactivate_sponsor(name)
                     
                 flash(f'Toggled sponsor: {name}', 'success')
                 return jsonify({'success': True})

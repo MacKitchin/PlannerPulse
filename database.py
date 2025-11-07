@@ -51,9 +51,9 @@ class DatabaseArticleManager:
 
     def __del__(self):
         """Cleanup method to close session when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
+        if hasattr(self, '_session') and self._session:
             try:
-                self.session.close()
+                self._session.close()
             except Exception:
                 pass
     
@@ -175,9 +175,9 @@ class DatabaseSponsorManager:
 
     def __del__(self):
         """Cleanup method to close session when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
+        if hasattr(self, '_session') and self._session:
             try:
-                self.session.close()
+                self._session.close()
             except Exception:
                 pass
     
@@ -258,8 +258,6 @@ class DatabaseSponsorManager:
             
             self.session.commit()
             
-            # Get next sponsor (exclude the current one that was just used)
-            next_sponsor = self._get_next_sponsor_excluding(current['id'])
             logger.info(f"Rotated sponsor: {current['name']} -> {next_sponsor['name'] if next_sponsor else 'None'}")
             
             return next_sponsor
@@ -408,9 +406,9 @@ class DatabaseNewsletterManager:
 
     def __del__(self):
         """Cleanup method to close session when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
+        if hasattr(self, '_session') and self._session:
             try:
-                self.session.close()
+                self._session.close()
             except Exception:
                 pass
     
@@ -515,9 +513,9 @@ class DatabaseRSSManager:
 
     def __del__(self):
         """Cleanup method to close session when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
+        if hasattr(self, '_session') and self._session:
             try:
-                self.session.close()
+                self._session.close()
             except Exception:
                 pass
     
