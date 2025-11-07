@@ -133,7 +133,7 @@ def cache_summary(content_hash: str, summary: str):
     summary_cache[content_hash] = summary
     logger.debug(f"Cached summary {content_hash[:8]}...")
 
-def summarize_article(article: Dict) -> Optional[str]:
+def summarize_article(article: Dict) -> Optional[Dict[str, str]]:
     """
     Summarize an article for newsletter inclusion using GPT-4o
     Includes caching and rate limiting
