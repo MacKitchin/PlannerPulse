@@ -4,7 +4,7 @@ Database models for Planner Pulse newsletter system
 
 import os
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
@@ -32,7 +32,14 @@ class Article(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+    # Indexes for performance optimization
+    __table_args__ = (
+        Index('idx_article_content_hash', 'content_hash'),  # For duplicate detection
+        Index('idx_article_source', 'source'),  # For filtering by source
+        Index('idx_article_processed_at', 'processed_at'),  # For sorting by date
+    )
+
     def __repr__(self):
         return f"<Article(id={self.id}, title='{self.title[:50]}...')>"
 
@@ -66,7 +73,13 @@ class Newsletter(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+    # Indexes for performance optimization
+    __table_args__ = (
+        Index('idx_newsletter_generation_date', 'generation_date'),  # For sorting by date
+        Index('idx_newsletter_sent_at', 'sent_at'),  # For filtering sent newsletters
+    )
+
     def __repr__(self):
         return f"<Newsletter(id={self.id}, title='{self.title}', date={self.generation_date})>"
 
@@ -86,8 +99,14 @@ class NewsletterArticle(Base):
     
     newsletter = relationship("Newsletter", back_populates="articles")
     article = relationship("Article", back_populates="included_in_newsletters")
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Indexes for performance optimization
+    __table_args__ = (
+        Index('idx_newsletter_article_newsletter_id', 'newsletter_id'),  # For join performance
+        Index('idx_newsletter_article_article_id', 'article_id'),  # For join performance
+    )
 
 class Sponsor(Base):
     """Model for managing sponsors"""
@@ -113,7 +132,12 @@ class Sponsor(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+    # Indexes for performance optimization
+    __table_args__ = (
+        Index('idx_sponsor_active_priority', 'active', 'priority', 'last_used'),  # For sponsor rotation query
+    )
+
     def __repr__(self):
         return f"<Sponsor(id={self.id}, name='{self.name}', active={self.active})>"
 

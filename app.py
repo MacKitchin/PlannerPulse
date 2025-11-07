@@ -23,6 +23,51 @@ from models import get_database_url
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Input validation constants
+MAX_URL_LENGTH = 2000
+MAX_NAME_LENGTH = 200
+MAX_MESSAGE_LENGTH = 5000
+MAX_EMAIL_LENGTH = 320  # RFC 5321
+MAX_SUBJECT_LENGTH = 998  # RFC 2822
+
+def validate_url(url: str, max_length: int = MAX_URL_LENGTH) -> tuple[bool, str]:
+    """Validate URL format and length"""
+    if not url or not isinstance(url, str):
+        return False, "URL is required"
+
+    url = url.strip()
+    if len(url) > max_length:
+        return False, f"URL exceeds maximum length of {max_length} characters"
+
+    if not url.startswith(('http://', 'https://')):
+        return False, "URL must start with http:// or https://"
+
+    # Basic URL structure validation
+    if ' ' in url:
+        return False, "URL contains invalid spaces"
+
+    return True, url
+
+def validate_string(value: str, field_name: str, max_length: int, required: bool = True) -> tuple[bool, str]:
+    """Validate string input"""
+    if not value or not isinstance(value, str):
+        if required:
+            return False, f"{field_name} is required"
+        return True, ""
+
+    value = value.strip()
+    if required and not value:
+        return False, f"{field_name} cannot be empty"
+
+    if len(value) > max_length:
+        return False, f"{field_name} exceeds maximum length of {max_length} characters"
+
+    return True, value
+
+def sanitize_json_input(data: dict) -> bool:
+    """Validate that input is a valid dictionary"""
+    return isinstance(data, dict)
+
 app = Flask(__name__)
 # Secure secret key handling
 secret_key = os.environ.get('SECRET_KEY')
@@ -31,15 +76,6 @@ if not secret_key:
     secret_key = secrets.token_hex(32)
     logger.warning("No SECRET_KEY environment variable found. Generated a random key for this session. "
                    "For production, set the SECRET_KEY environment variable to a secure random value.")
-=======
-
-# Generate a secure secret key
-secret_key = os.environ.get('SECRET_KEY')
-if not secret_key:
-    # Generate a random secret key for development
-    # In production, always set SECRET_KEY environment variable
-    secret_key = secrets.token_hex(32)
-    logger.warning("No SECRET_KEY found in environment. Generated random key (not suitable for production)")
 
 app.secret_key = secret_key
 
@@ -49,6 +85,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300,
+    'pool_size': 5,  # Maximum number of permanent connections
+    'max_overflow': 10,  # Maximum number of overflow connections
 }
 
 # Initialize SQLAlchemy
@@ -200,11 +238,18 @@ def add_rss_source():
     """Add a new RSS source"""
     try:
         data = request.get_json()
-        url = data.get('url', '').strip()
-        
-        if not url:
-            return jsonify({'error': 'URL is required'}), 400
-            
+        if not sanitize_json_input(data):
+            return jsonify({'error': 'Invalid request format'}), 400
+
+        url = data.get('url', '')
+
+        # Validate URL
+        is_valid, result = validate_url(url)
+        if not is_valid:
+            return jsonify({'error': result}), 400
+
+        url = result  # Use sanitized URL
+
         # Load config and add source
         config = load_config()
         if url not in config['sources']:
@@ -232,11 +277,18 @@ def remove_rss_source():
     """Remove an RSS source"""
     try:
         data = request.get_json()
-        url = data.get('url', '').strip()
-        
-        if not url:
-            return jsonify({'error': 'URL is required'}), 400
-            
+        if not sanitize_json_input(data):
+            return jsonify({'error': 'Invalid request format'}), 400
+
+        url = data.get('url', '')
+
+        # Validate URL
+        is_valid, result = validate_url(url)
+        if not is_valid:
+            return jsonify({'error': result}), 400
+
+        url = result  # Use sanitized URL
+
         # Load config and remove source
         config = load_config()
         if url in config['sources']:
@@ -264,25 +316,40 @@ def add_sponsor():
     """Add a new sponsor"""
     try:
         data = request.get_json()
-        
-        # Validate required fields
-        if not data.get('name') or not data.get('message'):
-            return jsonify({'error': 'Name and message are required'}), 400
-            
+        if not sanitize_json_input(data):
+            return jsonify({'error': 'Invalid request format'}), 400
+
+        # Validate name
+        is_valid, name = validate_string(data.get('name', ''), 'Sponsor name', MAX_NAME_LENGTH)
+        if not is_valid:
+            return jsonify({'error': name}), 400
+
+        # Validate message
+        is_valid, message = validate_string(data.get('message', ''), 'Sponsor message', MAX_MESSAGE_LENGTH)
+        if not is_valid:
+            return jsonify({'error': message}), 400
+
+        # Validate link (optional)
+        link = data.get('link', '').strip()
+        if link:
+            is_valid, link = validate_url(link)
+            if not is_valid:
+                return jsonify({'error': f'Invalid link: {link}'}), 400
+
         # Load config
         config = load_config()
-        
+
         # Check if sponsor already exists
         existing_names = [s['name'] for s in config.get('sponsors', [])]
-        if data['name'] in existing_names:
+        if name in existing_names:
             return jsonify({'error': 'Sponsor already exists'}), 400
-            
+
         # Add sponsor to config
         new_sponsor = {
-            'name': data['name'],
-            'message': data['message'],
-            'link': data.get('link', ''),
-            'active': data.get('active', True)
+            'name': name,
+            'message': message,
+            'link': link,
+            'active': bool(data.get('active', True))
         }
         config['sponsors'].append(new_sponsor)
         
@@ -294,7 +361,7 @@ def add_sponsor():
         sponsor_manager = DatabaseSponsorManager()
         sponsor_manager.add_sponsor(new_sponsor)
         
-        flash(f'Added sponsor: {data["name"]}', 'success')
+        flash(f'Added sponsor: {name}', 'success')
         return jsonify({'success': True})
         
     except Exception as e:
@@ -306,11 +373,14 @@ def remove_sponsor():
     """Remove a sponsor"""
     try:
         data = request.get_json()
-        name = data.get('name', '').strip()
-        
-        if not name:
-            return jsonify({'error': 'Name is required'}), 400
-            
+        if not sanitize_json_input(data):
+            return jsonify({'error': 'Invalid request format'}), 400
+
+        # Validate name
+        is_valid, name = validate_string(data.get('name', ''), 'Sponsor name', MAX_NAME_LENGTH)
+        if not is_valid:
+            return jsonify({'error': name}), 400
+
         # Load config
         config = load_config()
         
@@ -341,11 +411,14 @@ def toggle_sponsor():
     """Toggle sponsor active status"""
     try:
         data = request.get_json()
-        name = data.get('name', '').strip()
-        
-        if not name:
-            return jsonify({'error': 'Name is required'}), 400
-            
+        if not sanitize_json_input(data):
+            return jsonify({'error': 'Invalid request format'}), 400
+
+        # Validate name
+        is_valid, name = validate_string(data.get('name', ''), 'Sponsor name', MAX_NAME_LENGTH)
+        if not is_valid:
+            return jsonify({'error': name}), 400
+
         # Load config
         config = load_config()
         
@@ -411,25 +484,22 @@ def save_api_key():
         
         if not api_key:
             return jsonify({'error': 'API key is required'}), 400
-            
+
         if not api_key.startswith('sk-'):
             return jsonify({'error': 'Invalid API key format'}), 400
-            
-        # Load config
-        config = load_config()
-        
-        # Save API key to config
-        config['openai_api_key'] = api_key
-        
-        # Save config
-        with open('config.json', 'w') as f:
-            json.dump(config, f, indent=2)
-            
+
+        # SECURITY: Store API key in environment variable only, NOT in config.json
+        # Set the environment variable for the current session
+        os.environ['OPENAI_API_KEY'] = api_key
+
         # Reinitialize the OpenAI client with new key
         from summarizer import initialize_openai_client
         if initialize_openai_client(api_key):
-            flash('OpenAI API key saved successfully', 'success')
-            return jsonify({'success': True})
+            flash('OpenAI API key saved to environment for this session. '
+                  'For persistence, set OPENAI_API_KEY environment variable.', 'success')
+            return jsonify({'success': True,
+                          'message': 'API key configured for current session only. '
+                                   'Set OPENAI_API_KEY environment variable for persistence.'})
         else:
             return jsonify({'error': 'Failed to initialize OpenAI client'}), 500
             
@@ -480,5 +550,14 @@ if __name__ == '__main__':
     # Ensure output directory exists
     os.makedirs('output', exist_ok=True)
     os.makedirs('data', exist_ok=True)
-    
-    app.run(host='0.0.0.0', port=9000, debug=True)
+
+    # Configuration from environment variables with secure defaults
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')  # Default to localhost for security
+    port = int(os.environ.get('FLASK_PORT', '5000'))
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+    if debug:
+        logger.warning("Running in DEBUG mode. This should NOT be used in production!")
+
+    logger.info(f"Starting Flask server on {host}:{port} (debug={debug})")
+    app.run(host=host, port=port, debug=debug)
