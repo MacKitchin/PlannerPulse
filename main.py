@@ -148,7 +148,8 @@ def run_newsletter_generation():
                 logger.info("Newsletter generation completed successfully")
                 logger.info(f"Subject Line: {subject_line}")
                 logger.info(f"Articles included: {len(summaries)}")
-                logger.info(f"Current sponsor: {current_sponsor.get('name', 'None')}")
+                current_sponsor_name = current_sponsor.get('name', 'None') if current_sponsor else 'None'
+                logger.info(f"Current sponsor: {current_sponsor_name}")
                 
                 return True
             else:

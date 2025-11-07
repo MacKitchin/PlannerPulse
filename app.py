@@ -512,10 +512,13 @@ def api_key_status():
     """Check if API key is configured"""
     try:
         config = load_config()
-        api_key = config.get('openai_api_key')
-        
+        # Prefer environment variable for security; fall back to config for backward compatibility
+        api_key_env = os.environ.get('OPENAI_API_KEY', '').strip()
+        api_key_config = (config.get('openai_api_key') or '').strip()
+        api_key = api_key_env or api_key_config
+
         return jsonify({
-            'configured': bool(api_key and api_key.strip()),
+            'configured': bool(api_key),
             'masked_key': f"sk-...{api_key[-4:]}" if api_key else None
         })
         

@@ -217,37 +217,18 @@ class DatabaseSponsorManager:
                 return None
             
             current_id = current['id']
+            sponsor = self.session.get(Sponsor, current_id)
+            if not sponsor:
+                logger.warning(f"Current sponsor with ID {current_id} could not be found during rotation")
+                return None
+
+            # Determine the next sponsor before committing changes
+            next_sponsor = self._get_next_sponsor_excluding(current_id)
             
-            # Get next sponsor BEFORE updating current sponsor to avoid logic error
-            # Find all active sponsors except the current one
-            other_sponsors = self.session.query(Sponsor).filter(
-                Sponsor.active == True,
-                Sponsor.id != current_id
-            ).order_by(
-                desc(Sponsor.priority),
-                Sponsor.last_used.asc().nullsfirst()
-            ).all()
-            
-            # If there are other sponsors, select the next one
-            if other_sponsors:
-                next_sponsor_record = other_sponsors[0]
-                next_sponsor = {
-                    'id': next_sponsor_record.id,
-                    'name': next_sponsor_record.name,
-                    'message': next_sponsor_record.message,
-                    'link': next_sponsor_record.link,
-                    'active': next_sponsor_record.active
-                }
-            else:
-                # If only one sponsor, return the same one but update its usage
-                next_sponsor = current
-            
-            # Now update the current sponsor's last_used timestamp and increment appearances
-            sponsor = self.session.query(Sponsor).get(current_id)
+            # Update usage metrics for the current sponsor
             sponsor.last_used = datetime.utcnow()
-            sponsor.total_appearances += 1
+            sponsor.total_appearances = (sponsor.total_appearances or 0) + 1
             
-            # Record rotation if newsletter provided
             if newsletter_id:
                 rotation = SponsorRotation(
                     sponsor_id=sponsor.id,
@@ -258,9 +239,14 @@ class DatabaseSponsorManager:
             
             self.session.commit()
             
-            # Get next sponsor (exclude the current one that was just used)
-            next_sponsor = self._get_next_sponsor_excluding(current['id'])
-            logger.info(f"Rotated sponsor: {current['name']} -> {next_sponsor['name'] if next_sponsor else 'None'}")
+            if not next_sponsor:
+                next_sponsor = current
+            
+            logger.info(
+                "Rotated sponsor: %s -> %s",
+                current.get('name', 'None'),
+                next_sponsor.get('name', 'None')
+            )
             
             return next_sponsor
             

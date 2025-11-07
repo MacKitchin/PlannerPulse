@@ -14,15 +14,7 @@
             <!-- Sidebar -->
             <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
                 <div class="position-sticky pt-3">
-                    <h4 class="sidebar-heading d-flex justify-content-between         }
-
-        // Initialize page - check API key status on load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkApiKeyStatus();
-        });
-    </script>
-</body>
-</html>n-items-center px-3 mt-4 mb-1">
+                    <h4 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1">
                         <span style="color: var(--primary-color); font-weight: 700;">PlannerPulse</span>
                         <i data-feather="zap" class="text-primary"></i>
                     </h4>
@@ -267,7 +259,7 @@
                                     <button type="button" class="btn btn-primary" onclick="saveApiConfig()">
                                         <i data-feather="save"></i> Save API Configuration
                                     </button>
-                                    <button type="button" class="btn btn-secondary ms-2" onclick="testApiConnection()">
+                                    <button type="button" class="btn btn-secondary ms-2" id="test-api-button" onclick="testApiConnection(event)">
                                         <i data-feather="zap"></i> Test Connection
                                     </button>
                                 </div>
@@ -568,7 +560,7 @@
             });
         }
         
-        function testApiConnection() {
+        function testApiConnection(evt) {
             const apiKey = document.getElementById('openai-api-key').value.trim();
             
             if (!apiKey) {
@@ -577,11 +569,14 @@
             }
             
             // Show loading state
-            const testBtn = event.target;
-            const originalText = testBtn.innerHTML;
-            testBtn.innerHTML = '<i data-feather="loader"></i> Testing...';
-            testBtn.disabled = true;
-            feather.replace();
+            const testBtn = (evt && evt.currentTarget) || document.getElementById('test-api-button');
+            let originalText = '';
+            if (testBtn) {
+                originalText = testBtn.innerHTML;
+                testBtn.innerHTML = '<i data-feather="loader"></i> Testing...';
+                testBtn.disabled = true;
+                feather.replace();
+            }
             
             fetch('/api/settings/test-api', {
                 method: 'POST',
@@ -606,10 +601,12 @@
                 alert('❌ Error testing API connection');
             })
             .finally(() => {
-                // Restore button
-                testBtn.innerHTML = originalText;
-                testBtn.disabled = false;
-                feather.replace();
+                if (testBtn) {
+                    // Restore button
+                    testBtn.innerHTML = originalText || '<i data-feather="zap"></i> Test Connection';
+                    testBtn.disabled = false;
+                    feather.replace();
+                }
             });
         }
         
@@ -803,6 +800,10 @@
             .catch(error => {
                 alert('Error saving settings: ' + error.message);
             });
+        });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            checkApiKeyStatus();
         });
     </script>
 </body>
