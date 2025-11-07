@@ -10,23 +10,29 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+# Configuration constants
+MIN_CONTENT_LENGTH_FOR_SUMMARY = 200
+MAX_TOKENS_SUMMARY = 300
+MAX_TOKENS_SUBJECT_LINE = 100
+OPENAI_MODEL = "gpt-4o"
+OPENAI_TEMPERATURE_SUMMARY = 0.7
+OPENAI_TEMPERATURE_SUBJECT = 0.8  # Slightly higher for more creative subject lines
+
 # Global OpenAI client - will be initialized when API key is provided
 openai_client = None
 
 def get_api_key():
-    """Get OpenAI API key from environment or config file"""
-    # First try environment variable
+    """Get API key from environment variable only (SECURITY: not from config file)"""
+    # Only use environment variable for security reasons
     api_key = os.environ.get("OPENAI_API_KEY")
     if api_key:
         return api_key
-    
-    # Then try config file
-    try:
-        with open("config.json", "r", encoding="utf-8") as f:
-            config = json.load(f)
-            return config.get("openai_api_key")
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return None
+
+    # SECURITY: Do not load API key from config.json to prevent accidental commits
+    # If API key was previously stored in config.json, it will be ignored
+    logger.warning("No OPENAI_API_KEY found in environment. "
+                  "Set OPENAI_API_KEY environment variable to configure API access.")
+    return None
 
 def initialize_openai_client(api_key=None):
     """Initialize the OpenAI client with the provided or configured API key"""
@@ -99,7 +105,7 @@ def summarize_article(article: Dict) -> Optional[str]:
         content_to_summarize = article.get('summary', '')
         
         # Use full content if available and summary is short
-        if article.get('full_content') and len(content_to_summarize) < 200:
+        if article.get('full_content') and len(content_to_summarize) < MIN_CONTENT_LENGTH_FOR_SUMMARY:
             content_to_summarize = article['full_content']
         
         if not content_to_summarize.strip():
@@ -131,19 +137,18 @@ Please summarize this article in a format suitable for a professional newsletter
 """
 
         # Call GPT-4o for summarization
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
+        # Using OpenAI GPT-4o model (released May 13, 2024)
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model=OPENAI_MODEL,
             messages=[
                 {
-                    "role": "system", 
+                    "role": "system",
                     "content": "You are an expert content curator for meeting and event industry professionals. You specialize in creating engaging, informative newsletter content."
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
-            max_tokens=300
+            temperature=OPENAI_TEMPERATURE_SUMMARY,
+            max_tokens=MAX_TOKENS_SUMMARY
         )
         
         summary_text = response.choices[0].message.content.strip()
@@ -234,19 +239,18 @@ Generate ONE subject line that summarizes the top 2-3 stories. Return only the s
 """
 
         # Generate subject line with GPT-4o
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
+        # Using OpenAI GPT-4o model (released May 13, 2024)
         response = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model=OPENAI_MODEL,
             messages=[
                 {
-                    "role": "system", 
+                    "role": "system",
                     "content": "You are an expert email marketing specialist for the meetings and events industry."
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.8,
-            max_tokens=100
+            temperature=OPENAI_TEMPERATURE_SUBJECT,
+            max_tokens=MAX_TOKENS_SUBJECT_LINE
         )
         
         subject_line = response.choices[0].message.content.strip()

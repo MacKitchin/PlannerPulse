@@ -26,39 +26,31 @@ def get_db_session():
 
 class DatabaseArticleManager:
     """Database-backed article management replacing JSON-based deduplicator"""
-    
+
     def __init__(self):
         self._session = None
-    
+
     @property
     def session(self):
         """Lazy session initialization"""
         if self._session is None:
             self._session = get_session()
         return self._session
-    
+
     def close_session(self):
         """Close the database session"""
         if self._session is not None:
             self._session.close()
             self._session = None
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_session()
-    
+
     def __del__(self):
-        """Ensure session is closed when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
-            try:
-                self.session.close()
-            except:
-                pass
-    
-    def __del__(self):
-        """Cleanup method to close session"""
+        """Cleanup method to close session when object is destroyed"""
         if hasattr(self, 'session') and self.session:
             try:
                 self.session.close()
@@ -158,39 +150,31 @@ class DatabaseArticleManager:
 
 class DatabaseSponsorManager:
     """Database-backed sponsor management"""
-    
+
     def __init__(self):
         self._session = None
-    
+
     @property
     def session(self):
         """Lazy session initialization"""
         if self._session is None:
             self._session = get_session()
         return self._session
-    
+
     def close_session(self):
         """Close the database session"""
         if self._session is not None:
             self._session.close()
             self._session = None
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_session()
-    
+
     def __del__(self):
-        """Ensure session is closed when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
-            try:
-                self.session.close()
-            except:
-                pass
-    
-    def __del__(self):
-        """Cleanup method to close session"""
+        """Cleanup method to close session when object is destroyed"""
         if hasattr(self, 'session') and self.session:
             try:
                 self.session.close()
@@ -399,39 +383,31 @@ class DatabaseSponsorManager:
 
 class DatabaseNewsletterManager:
     """Database-backed newsletter management"""
-    
+
     def __init__(self):
         self._session = None
-    
+
     @property
     def session(self):
         """Lazy session initialization"""
         if self._session is None:
             self._session = get_session()
         return self._session
-    
+
     def close_session(self):
         """Close the database session"""
         if self._session is not None:
             self._session.close()
             self._session = None
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_session()
-    
+
     def __del__(self):
-        """Ensure session is closed when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
-            try:
-                self.session.close()
-            except:
-                pass
-    
-    def __del__(self):
-        """Cleanup method to close session"""
+        """Cleanup method to close session when object is destroyed"""
         if hasattr(self, 'session') and self.session:
             try:
                 self.session.close()
@@ -514,39 +490,31 @@ class DatabaseNewsletterManager:
 
 class DatabaseRSSManager:
     """Database-backed RSS source management"""
-    
+
     def __init__(self):
         self._session = None
-    
+
     @property
     def session(self):
         """Lazy session initialization"""
         if self._session is None:
             self._session = get_session()
         return self._session
-    
+
     def close_session(self):
         """Close the database session"""
         if self._session is not None:
             self._session.close()
             self._session = None
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_session()
-    
+
     def __del__(self):
-        """Ensure session is closed when object is destroyed"""
-        if hasattr(self, 'session') and self.session:
-            try:
-                self.session.close()
-            except:
-                pass
-    
-    def __del__(self):
-        """Cleanup method to close session"""
+        """Cleanup method to close session when object is destroyed"""
         if hasattr(self, 'session') and self.session:
             try:
                 self.session.close()

@@ -13,7 +13,12 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-def fetch_articles(rss_urls: List[str], max_per_feed: int = 5) -> List[Dict]:
+# Configuration constants
+DEFAULT_MAX_ARTICLES_PER_FEED = 5
+HTTP_REQUEST_TIMEOUT_SECONDS = 10
+MIN_SUMMARY_LENGTH = 100
+
+def fetch_articles(rss_urls: List[str], max_per_feed: int = DEFAULT_MAX_ARTICLES_PER_FEED) -> List[Dict]:
     """
     Fetch articles from RSS feeds
     
@@ -98,9 +103,9 @@ def extract_article_data(entry, source_name: str) -> Dict:
             summary = ' '.join(chunk for chunk in chunks if chunk)
         
         article['summary'] = summary
-        
+
         # Try to get full content if summary is short
-        if len(summary) < 100 and article['link']:
+        if len(summary) < MIN_SUMMARY_LENGTH and article['link']:
             try:
                 full_content = get_full_article_content(article['link'])
                 if full_content and len(full_content) > len(summary):
@@ -129,17 +134,16 @@ def get_full_article_content(url: str) -> str:
         if not url or not url.startswith(('http://', 'https://')):
             logger.debug(f"Invalid URL format: {url}")
             return ""
-        
+
+        logger.debug(f"Fetching full content from: {url}")
         try:
-            response = requests.get(url, timeout=10, allow_redirects=True)
+            response = requests.get(url, timeout=HTTP_REQUEST_TIMEOUT_SECONDS, allow_redirects=True)
             response.raise_for_status()
             downloaded = trafilatura.fetch_url(url, html=response.text)
         except requests.exceptions.RequestException as e:
             logger.debug(f"URL fetch failed for {url}: {e}")
             return ""
-        
-        logger.debug(f"Fetching full content from: {url}")
-        downloaded = trafilatura.fetch_url(url)
+
         if downloaded:
             text = trafilatura.extract(downloaded)
             return text if text else ""
