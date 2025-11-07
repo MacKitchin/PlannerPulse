@@ -1,12 +1,16 @@
 """
 AI-powered article summarization and subject line generation using OpenAI GPT-4o
+Includes rate limiting and caching to control costs
 """
 
 import os
 import logging
 import json
+import hashlib
 from typing import Dict, List, Optional
 from openai import OpenAI
+from cachetools import TTLCache
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,13 @@ MAX_TOKENS_SUBJECT_LINE = 100
 OPENAI_MODEL = "gpt-4o"
 OPENAI_TEMPERATURE_SUMMARY = 0.7
 OPENAI_TEMPERATURE_SUBJECT = 0.8  # Slightly higher for more creative subject lines
+
+# Rate limiting and caching
+MAX_API_CALLS_PER_RUN = int(os.environ.get('MAX_OPENAI_CALLS_PER_RUN', '100'))
+SUMMARY_CACHE_TTL = 86400  # 24 hours
+summary_cache = TTLCache(maxsize=1000, ttl=SUMMARY_CACHE_TTL)
+api_call_count = 0
+api_call_start_time = None
 
 # Global OpenAI client - will be initialized when API key is provided
 openai_client = None
@@ -82,35 +93,92 @@ def test_api_connection(api_key=None):
 if not initialize_openai_client():
     logger.warning("OpenAI client not initialized - API key required for summarization features")
 
+def reset_api_call_counter():
+    """Reset the API call counter for a new run"""
+    global api_call_count, api_call_start_time
+    api_call_count = 0
+    api_call_start_time = time.time()
+    logger.info("API call counter reset")
+
+def check_rate_limit() -> bool:
+    """Check if we're within the rate limit"""
+    global api_call_count
+    if api_call_count >= MAX_API_CALLS_PER_RUN:
+        logger.warning(f"API call limit reached: {api_call_count}/{MAX_API_CALLS_PER_RUN}")
+        return False
+    return True
+
+def increment_api_calls():
+    """Increment API call counter and log stats"""
+    global api_call_count, api_call_start_time
+    api_call_count += 1
+    if api_call_start_time:
+        elapsed = time.time() - api_call_start_time
+        rate = api_call_count / elapsed if elapsed > 0 else 0
+        logger.debug(f"API calls: {api_call_count}/{MAX_API_CALLS_PER_RUN} ({rate:.2f}/sec)")
+
+def get_content_hash(content: str) -> str:
+    """Generate hash of content for caching"""
+    return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+def get_cached_summary(content_hash: str) -> Optional[str]:
+    """Get cached summary if available"""
+    if content_hash in summary_cache:
+        logger.debug(f"Cache hit for summary {content_hash[:8]}...")
+        return summary_cache[content_hash]
+    return None
+
+def cache_summary(content_hash: str, summary: str):
+    """Cache summary for future use"""
+    summary_cache[content_hash] = summary
+    logger.debug(f"Cached summary {content_hash[:8]}...")
+
 def summarize_article(article: Dict) -> Optional[str]:
     """
     Summarize an article for newsletter inclusion using GPT-4o
-    
+    Includes caching and rate limiting
+
     Args:
         article: Dictionary containing article data (title, summary, full_content, etc.)
-    
+
     Returns:
         Formatted summary string or None if failed
     """
     global openai_client
-    
+
     # Check if client is initialized
     if not openai_client:
         if not initialize_openai_client():
             logger.error("Cannot summarize article: OpenAI client not initialized")
             return None
-    
+
+    # Check rate limit
+    if not check_rate_limit():
+        logger.error(f"API rate limit exceeded ({MAX_API_CALLS_PER_RUN} calls)")
+        return None
+
     try:
         # Prepare content for summarization
         content_to_summarize = article.get('summary', '')
-        
+
         # Use full content if available and summary is short
         if article.get('full_content') and len(content_to_summarize) < MIN_CONTENT_LENGTH_FOR_SUMMARY:
             content_to_summarize = article['full_content']
-        
+
         if not content_to_summarize.strip():
             logger.warning(f"No content to summarize for article: {article.get('title', 'Unknown')}")
             return None
+
+        # Check cache first
+        content_hash = get_content_hash(content_to_summarize)
+        cached = get_cached_summary(content_hash)
+        if cached:
+            logger.info(f"Using cached summary for: {article.get('title', 'Unknown')[:50]}...")
+            return cached
+
+        # SECURITY: Truncate content for LLM to prevent prompt injection
+        from security import truncate_for_llm
+        content_to_summarize = truncate_for_llm(content_to_summarize, max_length=4000)
         
         # Craft prompt for meeting planner audience
         prompt = f"""
@@ -138,6 +206,7 @@ Please summarize this article in a format suitable for a professional newsletter
 
         # Call GPT-4o for summarization
         # Using OpenAI GPT-4o model (released May 13, 2024)
+        logger.info(f"Calling OpenAI API to summarize: {article.get('title', 'Unknown')[:50]}...")
         response = openai_client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[
@@ -150,17 +219,20 @@ Please summarize this article in a format suitable for a professional newsletter
             temperature=OPENAI_TEMPERATURE_SUMMARY,
             max_tokens=MAX_TOKENS_SUMMARY
         )
-        
+
+        # Increment API call counter
+        increment_api_calls()
+
         summary_text = response.choices[0].message.content.strip()
-        
+
         if summary_text:
             logger.info(f"Successfully summarized: {article.get('title', 'Unknown')}")
-            
+
             # Parse the summary to extract takeaway
             lines = summary_text.split('\n')
             summary = ""
             takeaway = ""
-            
+
             for line in lines:
                 if '🔑' in line or 'Key Takeaway:' in line:
                     # Extract takeaway
@@ -168,12 +240,17 @@ Please summarize this article in a format suitable for a professional newsletter
                     takeaway = takeaway.replace('**', '').strip()
                 else:
                     summary += line + " "
-            
-            # Return structured data
-            return {
+
+            # Create result
+            result = {
                 'summary': summary.strip(),
                 'takeaway': takeaway
             }
+
+            # Cache the result
+            cache_summary(content_hash, result)
+
+            return result
         else:
             logger.warning(f"Empty summary returned for: {article.get('title', 'Unknown')}")
             return None

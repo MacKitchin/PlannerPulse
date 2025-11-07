@@ -1,0 +1,41 @@
+# PlannerPulse Newsletter System - Production Dependencies
+# Generated from pyproject.toml with pinned versions for reproducibility
+# Install with: pip install -r requirements.txt
+
+# Core Dependencies
+beautifulsoup4==4.13.4
+feedparser==6.0.11
+flask==3.1.1
+flask-sqlalchemy==3.1.1
+jinja2==3.1.6
+openai==1.97.0
+psycopg2-binary==2.9.10
+python-dotenv==1.1.1
+requests==2.32.4
+sqlalchemy==2.0.41
+trafilatura==2.0.0
+
+# Security & Sanitization
+bleach==6.2.0  # HTML sanitization to prevent XSS
+markupsafe==3.0.2  # Safe string handling (already included by Jinja2)
+
+# Database Migrations
+alembic==1.14.0
+
+# Caching
+cachetools==5.5.0
+
+# Scheduling (optional)
+apscheduler==3.11.0
+
+# Development/Testing Dependencies (optional)
+# Uncomment for development:
+# ruff==0.8.4  # Fast Python linter
+# mypy==1.13.0  # Static type checker
+# pytest==8.3.4  # Testing framework
+# pytest-cov==6.0.0  # Coverage reporting
+# pytest-mock==3.14.0  # Mocking for tests
+
+# Production WSGI Server (recommended)
+# gunicorn==23.0.0  # For production deployment
+# gevent==24.11.1  # Async workers for gunicorn

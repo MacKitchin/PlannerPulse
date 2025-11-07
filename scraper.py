@@ -10,6 +10,7 @@ import logging
 from typing import List, Dict
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
+from security import sanitize_article_content, validate_external_url
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,10 @@ def fetch_articles(rss_urls: List[str], max_per_feed: int = DEFAULT_MAX_ARTICLES
                 try:
                     article = extract_article_data(entry, feed_title)
                     if article:
-                        articles.append(article)
+                        # SECURITY: Sanitize all article content before processing
+                        article = sanitize_article_content(article)
+                        if article.get('link'):  # Only include if URL is valid
+                            articles.append(article)
                 except Exception as e:
                     logger.error(f"Error processing entry from {url}: {e}")
                     continue
@@ -122,22 +126,24 @@ def extract_article_data(entry, source_name: str) -> Dict:
 def get_full_article_content(url: str) -> str:
     """
     Fetch full article content using trafilatura
-    
+
     Args:
         url: Article URL
-    
+
     Returns:
         Extracted text content
     """
     try:
-        # Validate URL before fetching
-        if not url or not url.startswith(('http://', 'https://')):
-            logger.debug(f"Invalid URL format: {url}")
+        # SECURITY: Validate URL before fetching to prevent SSRF
+        is_valid, result = validate_external_url(url)
+        if not is_valid:
+            logger.warning(f"Blocked potentially unsafe URL: {url} - {result}")
             return ""
 
         logger.debug(f"Fetching full content from: {url}")
         try:
-            response = requests.get(url, timeout=HTTP_REQUEST_TIMEOUT_SECONDS, allow_redirects=True)
+            response = requests.get(url, timeout=HTTP_REQUEST_TIMEOUT_SECONDS,
+                                   allow_redirects=True, max_redirects=3)
             response.raise_for_status()
             downloaded = trafilatura.fetch_url(url, html=response.text)
         except requests.exceptions.RequestException as e:
