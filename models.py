@@ -208,7 +208,7 @@ def get_database_url():
     default_db_path = Path('data') / 'planner_pulse.db'
     try:
         default_db_path.parent.mkdir(parents=True, exist_ok=True)
-    except Exception:
+    except OSError:
         # Directory may already exist or creation may fail in restricted environments,
         # but we still fall back to the SQLite URL.
         pass
