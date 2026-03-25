@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Digest — PlannerPulse Editorial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { background: var(--surface-color); }
+        .dg-layout { display: flex; min-height: 100vh; }
+        .dg-sidebar {
+            width: 220px; min-width: 220px; background: #fff;
+            border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
+        }
+        .dg-brand { padding: 1rem 1.25rem 0.75rem; border-bottom: 1px solid var(--border-color); }
+        .dg-brand .b-name { font-weight: 800; font-size: 1rem; color: var(--secondary-color); }
+        .dg-brand .b-sub { font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+        .dg-sidebar .nav-link { font-size: 0.88rem; font-weight: 500; color: var(--text-primary); padding: 0.6rem 1.25rem; border-left: 3px solid transparent; transition: all 0.15s; }
+        .dg-sidebar .nav-link:hover { background: var(--light-color); color: var(--primary-color); }
+        .dg-sidebar .nav-link.active { color: var(--primary-color); border-left-color: var(--primary-color); background: rgba(0,152,180,0.07); font-weight: 600; }
+
+        .dg-main { flex: 1; overflow-y: auto; }
+
+        /* Email-style digest container */
+        .digest-outer { max-width: 680px; margin: 2rem auto; padding: 0 1rem 3rem; }
+
+        .digest-masthead {
+            background: #1B2A3D; padding: 20px 40px 16px; text-align: center;
+            border-bottom: 3px solid #0098B4;
+        }
+        .digest-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #0098B4; margin-bottom: 6px; }
+        .digest-pub { font-family: Georgia, serif; font-size: 28px; color: #fff; line-height: 1; }
+        .digest-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 6px; }
+        .digest-meta {
+            display: flex; justify-content: space-between;
+            background: #142231; padding: 8px 40px;
+            font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.03em;
+        }
+
+        .digest-body { background: #fff; border: 1px solid #D0D7DF; border-top: none; padding: 28px 40px; }
+
+        .digest-section-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.14em; color: #0098B4; border-bottom: 1px solid #0098B4;
+            padding-bottom: 5px; margin-bottom: 20px;
+        }
+        .pipeline-status {
+            background: #F5F8FA; border: 1px solid #D0D7DF; border-radius: 0.5rem;
+            padding: 12px 16px; margin-bottom: 20px; font-size: 0.83rem;
+        }
+        .pipeline-status .lbl { font-weight: 700; color: #1B2A3D; margin-right: 0.5rem; }
+        .pipeline-status .val { color: #0098B4; font-weight: 600; }
+
+        .digest-article { padding: 14px 0; border-bottom: 1px solid #E5E9EF; }
+        .digest-article:last-child { border-bottom: none; }
+        .da-kicker { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.13em; color: #0098B4; margin-bottom: 5px; }
+        .da-headline {
+            font-family: Georgia, serif; font-size: 17px; font-weight: normal;
+            color: #0F1C2B; line-height: 1.3; margin-bottom: 6px;
+        }
+        .da-headline a { color: #0F1C2B; text-decoration: none; }
+        .da-headline a:hover { color: #0098B4; text-decoration: underline; }
+        .da-lede { font-size: 13px; line-height: 1.6; color: #5C6B7A; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .da-meta { display: flex; align-items: center; gap: 0.5rem; font-size: 11px; color: #9AA5B0; }
+        .score-chip {
+            display: inline-block; padding: 1px 7px; border-radius: 3px;
+            font-size: 10px; font-weight: 700; color: #fff;
+        }
+        .chip-green { background: #00A676; }
+        .chip-yellow { background: #E8A317; }
+        .chip-gray { background: #5C6B7A; }
+
+        .approved-section { margin-top: 28px; padding-top: 20px; border-top: 2px solid #0098B4; }
+
+        .digest-footer {
+            background: #1B2A3D; padding: 18px 40px;
+            border: 1px solid #D0D7DF; border-top: none;
+        }
+        .digest-footer-pub { font-family: Georgia, serif; font-size: 14px; color: #fff; margin-bottom: 8px; }
+        .digest-footer-links a { color: rgba(255,255,255,0.45); font-size: 11px; text-decoration: none; margin-right: 14px; }
+        .digest-footer-links a:hover { color: #0098B4; }
+        .digest-footer-legal { font-size: 10px; color: rgba(255,255,255,0.25); margin-top: 8px; line-height: 1.7; }
+
+        .next-runs {
+            display: flex; gap: 0.5rem; flex-wrap: wrap;
+        }
+        .run-chip {
+            background: rgba(0,152,180,0.12); color: #0098B4;
+            padding: 2px 10px; border-radius: 3px; font-size: 11px; font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .dg-sidebar { display: none; }
+            .digest-masthead, .digest-body, .digest-footer { padding-left: 20px; padding-right: 20px; }
+            .digest-meta { padding-left: 20px; padding-right: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="dg-layout">
+    <nav class="dg-sidebar">
+        <div class="dg-brand">
+            <div class="b-name">PlannerPulse</div>
+            <div class="b-sub">Daily Digest</div>
+        </div>
+        <ul class="nav flex-column mt-2">
+            <li><a class="nav-link" href="/">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a></li>
+            <li><a class="nav-link" href="/editorial">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editorial Queue</a></li>
+            <li><a class="nav-link" href="/analytics">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics</a></li>
+            <li><a class="nav-link active" href="/digest">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Daily Digest</a></li>
+        </ul>
+        <div class="mt-auto p-3 border-top" style="font-size:0.75rem;">
+            <a href="/logout" style="color:var(--danger-color); font-size:0.78rem; text-decoration:none; font-weight:500;">Sign out</a>
+        </div>
+    </nav>
+
+    <main class="dg-main">
+        <div class="digest-outer">
+
+            <!-- Masthead -->
+            <div class="digest-masthead">
+                <div class="digest-eyebrow">Informa Connect · Meetings &amp; Events Intelligence</div>
+                <div class="digest-pub">Planner Pulse</div>
+                <div class="digest-sub">Editorial Morning Briefing</div>
+            </div>
+            <div class="digest-meta">
+                <span>{{ generated_at }}</span>
+                <span>{{ stats.pending_review or 0 }} drafts pending · {{ stats.approved or 0 }} approved</span>
+            </div>
+
+            <!-- Body -->
+            <div class="digest-body">
+
+                <!-- Pipeline status -->
+                <div class="pipeline-status">
+                    <span class="lbl">Pipeline status:</span>
+                    <span class="val">Running automatically</span>
+                    &nbsp;&nbsp;
+                    <span class="lbl">Next runs:</span>
+                    {% if next_runs %}
+                        <div class="next-runs d-inline-flex">
+                        {% for t in next_runs %}
+                            <span class="run-chip">{{ t }}</span>
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <span style="color:#9AA5B0; font-size:0.8rem;">Scheduler not running — start app with <code>python app.py</code></span>
+                    {% endif %}
+                    &nbsp;&nbsp;
+                    <a href="/api/editorial/ingest" onclick="event.preventDefault(); runPipelineNow(this)" style="font-size:0.8rem; color:#0098B4; font-weight:600;">Run now ⚡</a>
+                </div>
+
+                <!-- Pending drafts -->
+                <div class="digest-section-label">Pending Review — {{ drafts|length }} Draft{{ 's' if drafts|length != 1 else '' }}</div>
+
+                {% if drafts %}
+                    {% for draft in drafts %}
+                    <div class="digest-article">
+                        <div class="da-kicker">{{ draft.primary_topic or 'General' }}</div>
+                        <div class="da-headline">
+                            <a href="/editorial#draft-{{ draft.id }}">{{ draft.edited_headline or draft.headline }}</a>
+                        </div>
+                        <div class="da-lede">{{ draft.lede or '' }}</div>
+                        <div class="da-meta">
+                            {% set score = draft.relevance_score or 0 %}
+                            <span class="score-chip {% if score >= 75 %}chip-green{% elif score >= 60 %}chip-yellow{% else %}chip-gray{% endif %}">{{ score }}</span>
+                            <span>{{ draft.source_article.source_name if draft.source_article else 'Unknown source' }}</span>
+                            <span>·</span>
+                            <span>{{ draft.generated_at.strftime('%b %d, %H:%M') if draft.generated_at else '' }}</span>
+                            <span>·</span>
+                            <a href="/editorial" style="color:#0098B4; font-size:11px; font-weight:600;">Review →</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="padding: 2rem 0; text-align:center; color:#9AA5B0; font-size:0.88rem;">
+                        No pending drafts. Run the pipeline to generate new articles.
+                    </div>
+                {% endif %}
+
+                <!-- Approved today -->
+                {% if approved_today %}
+                <div class="approved-section">
+                    <div class="digest-section-label">Approved &amp; Ready to Publish — {{ approved_today|length }}</div>
+                    {% for draft in approved_today[:5] %}
+                    <div class="digest-article">
+                        <div class="da-kicker" style="color:#00A676;">✓ Approved</div>
+                        <div class="da-headline">{{ draft.edited_headline or draft.headline }}</div>
+                        <div class="da-meta">
+                            <span>{{ draft.source_article.source_name if draft.source_article else 'Unknown' }}</span>
+                            <span>·</span>
+                            <a href="/api/editorial/export/{{ draft.id }}/html" target="_blank" style="color:#0098B4; font-size:11px; font-weight:600;">Export HTML →</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+            </div><!-- /digest-body -->
+
+            <!-- Footer -->
+            <div class="digest-footer">
+                <div class="digest-footer-pub">Planner Pulse Editorial</div>
+                <div class="digest-footer-links">
+                    <a href="/editorial">Review Queue</a>
+                    <a href="/analytics">Analytics</a>
+                    <a href="/">Newsletter Dashboard</a>
+                    <a href="/logout">Sign out</a>
+                </div>
+                <div class="digest-footer-legal">
+                    Internal tool — Informa Connect Meetings &amp; Events Intelligence.<br>
+                    Not for external distribution.
+                </div>
+            </div>
+
+        </div><!-- /digest-outer -->
+    </main>
+</div>
+
+<script>
+function runPipelineNow(link) {
+    link.textContent = 'Running…';
+    fetch('/api/editorial/ingest', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+        .then(r => r.json())
+        .then(d => {
+            link.textContent = d.success ? '✓ Done — refresh to see new drafts' : '✗ Failed';
+            if (d.success) setTimeout(() => location.reload(), 1500);
+        })
+        .catch(() => { link.textContent = '✗ Error'; });
+}
+</script>
+</body>
+</html>

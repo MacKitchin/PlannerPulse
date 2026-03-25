@@ -7,6 +7,7 @@ Main orchestration script for generating newsletters
 import json
 import logging
 import sys
+from collections import defaultdict
 from datetime import datetime
 
 from scraper import fetch_articles
@@ -39,6 +40,44 @@ def load_config():
         logger.error(f"Invalid JSON in config.json: {e}")
         raise
 
+def diversify_articles(articles: list, max_per_source: int = 2, total_limit: int = None) -> list:
+    """
+    Round-robin through sources so no single publication dominates.
+    Returns at most `max_per_source` articles per source, interleaved
+    so source variety appears throughout the newsletter.
+    """
+    # Group by source
+    by_source = defaultdict(list)
+    for a in articles:
+        source = a.get('source', 'unknown')
+        by_source[source].append(a)
+
+    # Cap each source at max_per_source
+    capped = {src: arts[:max_per_source] for src, arts in by_source.items()}
+
+    # Round-robin interleave so sources alternate
+    result = []
+    round_idx = 0
+    while True:
+        added = False
+        for arts in capped.values():
+            if round_idx < len(arts):
+                result.append(arts[round_idx])
+                added = True
+        if not added:
+            break
+        round_idx += 1
+
+    if total_limit:
+        result = result[:total_limit]
+
+    source_counts = defaultdict(int)
+    for a in result:
+        source_counts[a.get('source', 'unknown')] += 1
+    logger.info(f"Source diversity: {dict(source_counts)}")
+    return result
+
+
 def run_newsletter_generation():
     """Main function to orchestrate newsletter generation"""
     try:
@@ -61,11 +100,18 @@ def run_newsletter_generation():
             logger.info("Deduplicating articles")
             new_articles = article_manager.filter_new_articles(raw_articles)
             logger.info(f"Found {len(new_articles)} new articles after deduplication")
-            
+
             if not new_articles:
                 logger.warning("No new articles found. Newsletter generation skipped.")
                 return False
-            
+
+            # Enforce source diversity — cap per source and interleave
+            articles_per_newsletter = config.get('content_settings', {}).get('articles_per_newsletter', 8)
+            max_per_source = max(1, articles_per_newsletter // max(len(config.get('sources', [1])), 1))
+            max_per_source = min(max_per_source, 2)  # never more than 2 from the same outlet
+            new_articles = diversify_articles(new_articles, max_per_source=max_per_source, total_limit=articles_per_newsletter)
+            logger.info(f"After diversity filter: {len(new_articles)} articles selected")
+
             # Summarize articles using GPT-4o
             logger.info("Summarizing articles with GPT-4o")
             summaries = []
