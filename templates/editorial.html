@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSNN Editorial Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* ── Layout ────────────────────────────────────────────────── */
+        body { background: var(--surface-color); }
+
+        .editorial-layout {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar nav */
+        .ed-sidebar {
+            width: 220px;
+            min-width: 220px;
+            background: #fff;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding-top: 0;
+            z-index: 10;
+        }
+        .ed-sidebar-brand {
+            padding: 1rem 1.25rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .ed-sidebar-brand .brand-name {
+            font-weight: 800;
+            font-size: 1rem;
+            color: var(--secondary-color);
+            letter-spacing: -0.02em;
+        }
+        .ed-sidebar-brand .brand-sub {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .ed-sidebar .nav-link {
+            font-size: 0.88rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            padding: 0.6rem 1.25rem;
+            border-radius: 0;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+        .ed-sidebar .nav-link:hover { background: var(--light-color); color: var(--primary-color); }
+        .ed-sidebar .nav-link.active {
+            color: var(--primary-color);
+            border-left-color: var(--primary-color);
+            background: rgba(0,152,180,0.07);
+            font-weight: 600;
+        }
+        .ed-sidebar .nav-link .badge { font-size: 0.68rem; }
+
+        /* Queue panel */
+        .queue-panel {
+            width: 360px;
+            min-width: 300px;
+            background: #fff;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .queue-header {
+            padding: 1rem 1rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .queue-header h5 { font-size: 0.95rem; font-weight: 700; margin: 0; }
+        .queue-filters {
+            display: flex;
+            gap: 0.25rem;
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            background: var(--surface-color);
+        }
+        .filter-btn {
+            font-size: 0.78rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .filter-btn:hover { border-color: var(--primary-color); color: var(--primary-color); }
+        .filter-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+        .draft-list {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .draft-item {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .draft-item:hover { background: var(--light-color); }
+        .draft-item.selected { background: rgba(0,152,180,0.08); border-left: 3px solid var(--primary-color); }
+        .draft-item .headline { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); line-height: 1.35; margin-bottom: 0.3rem; }
+        .draft-item .meta { font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+        .draft-item .lede-preview { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .score-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.15rem 0.45rem;
+            border-radius: 0.25rem;
+            color: #fff;
+        }
+        .score-success { background: var(--success-color); }
+        .score-warning { background: var(--warning-color); }
+        .score-secondary { background: var(--gray-color); }
+        .score-danger { background: var(--danger-color); }
+
+        .status-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.draft { background: var(--warning-color); }
+        .status-dot.approved { background: var(--success-color); }
+        .status-dot.rejected { background: var(--danger-color); }
+
+        /* Detail panel */
+        .detail-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--surface-color);
+        }
+        .detail-toolbar {
+            padding: 0.75rem 1.5rem;
+            background: #fff;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+        .detail-toolbar .btn { font-size: 0.82rem; padding: 0.35rem 0.85rem; }
+        .toolbar-spacer { flex: 1; }
+
+        .detail-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        /* Article display */
+        .article-topic-tag {
+            display: inline-block;
+            font-size: 0.73rem;
+            font-weight: 600;
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            background: rgba(0,152,180,0.12);
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+        .article-headline {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: var(--secondary-color);
+            line-height: 1.25;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+        }
+        .alt-headlines {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            margin-bottom: 1rem;
+        }
+        .alt-headline-btn {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 0.4rem;
+            padding: 0.4rem 0.8rem;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .alt-headline-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: rgba(0,152,180,0.04); }
+
+        .article-lede {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin-bottom: 1.25rem;
+            padding-left: 1rem;
+            border-left: 3px solid var(--primary-color);
+        }
+        .article-body {
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            line-height: 1.75;
+            margin-bottom: 1.5rem;
+            white-space: pre-wrap;
+        }
+        .section-heading {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--primary-color);
+            margin-bottom: 0.6rem;
+            margin-top: 1.5rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .why-it-matters {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+            background: rgba(0,152,180,0.04);
+            border-radius: 0.5rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            white-space: pre-wrap;
+        }
+        .key-takeaways { list-style: none; padding: 0; margin-bottom: 1.25rem; }
+        .key-takeaways li {
+            font-size: 0.88rem;
+            color: var(--text-primary);
+            padding: 0.45rem 0 0.45rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+        }
+        .key-takeaways li:last-child { border-bottom: none; }
+        .key-takeaways li::before { content: '▸'; position: absolute; left: 0; color: var(--primary-color); font-size: 0.75rem; top: 0.55rem; }
+
+        .source-card {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.82rem;
+        }
+        .source-card a { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+        .source-card a:hover { text-decoration: underline; }
+
+        /* Editable fields */
+        .editable-headline {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: var(--secondary-color);
+            line-height: 1.25;
+            letter-spacing: -0.02em;
+            border: 2px dashed transparent;
+            border-radius: 0.375rem;
+            padding: 0.25rem;
+            width: 100%;
+            margin-bottom: 0.75rem;
+            background: transparent;
+            resize: none;
+            font-family: var(--font-primary);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .editable-headline:focus { border-color: var(--primary-color); background: #fff; }
+        .editable-body {
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            line-height: 1.75;
+            border: 2px dashed transparent;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            width: 100%;
+            min-height: 200px;
+            resize: vertical;
+            font-family: var(--font-primary);
+            background: transparent;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .editable-body:focus { border-color: var(--primary-color); background: #fff; }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 2rem;
+        }
+        .empty-state svg { opacity: 0.25; margin-bottom: 1rem; }
+
+        /* Pipeline modal */
+        .pipeline-log {
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            background: #0F1923;
+            color: #7FDBCA;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            min-height: 120px;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+
+        /* Confidence indicator */
+        .confidence-pip { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; }
+        .pip-filled { background: var(--success-color); }
+        .pip-empty { background: var(--border-color); }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .stats-bar strong { color: var(--text-primary); }
+
+        @media (max-width: 768px) {
+            .ed-sidebar { display: none; }
+            .queue-panel { width: 100%; min-width: unset; }
+            .detail-panel { display: none; }
+            .queue-panel.hide-mobile { display: none; }
+            .detail-panel.show-mobile { display: flex; }
+        }
+    </style>
+</head>
+<body>
+<div class="editorial-layout">
+
+    <!-- ── Sidebar ──────────────────────────────────────────────── -->
+    <nav class="ed-sidebar">
+        <div class="ed-sidebar-brand">
+            <div class="brand-name">PlannerPulse</div>
+            <div class="brand-sub">Editorial Assistant</div>
+        </div>
+        <ul class="nav flex-column mt-2">
+            <li class="nav-item">
+                <a class="nav-link" href="/">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Newsletter Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link active" href="/editorial">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Editorial Queue
+                    <span class="badge bg-warning ms-auto" id="sidebar-pending-count">{{ stats.pending_review or 0 }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/analytics">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    Analytics
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/digest">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    Daily Digest
+                </a>
+            </li>
+        </ul>
+        <div class="mt-auto p-3 border-top" style="font-size:0.75rem; color:var(--text-secondary);">
+            <div>Powered by GPT-4o</div>
+            <div style="margin-top:0.2rem;">
+                <span id="sidebar-approved-count">{{ stats.approved or 0 }}</span> approved &nbsp;·&nbsp;
+                <span id="sidebar-rejected-count">{{ stats.rejected or 0 }}</span> rejected
+            </div>
+            <div style="margin-top:0.4rem;"><a href="/logout" style="color:var(--danger-color); font-size:0.78rem; text-decoration:none; font-weight:500;">Sign out</a></div>
+        </div>
+    </nav>
+
+    <!-- ── API key banner (shown when key missing/invalid) ──────── -->
+    <div id="apikey-banner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:200;
+         background:#1B2A3D; color:#fff; padding:0.6rem 1.5rem; font-size:0.83rem;
+         display:flex; align-items:center; gap:1rem; border-bottom:2px solid var(--warning-color);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8A317" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span style="flex:1;"><strong>OpenAI API key not configured.</strong> The pipeline needs a valid key to classify articles and generate drafts.</span>
+        <input type="password" id="banner-api-key" placeholder="sk-..." autocomplete="off"
+               style="padding:0.3rem 0.65rem; border-radius:0.375rem; border:1px solid rgba(255,255,255,0.3);
+                      background:rgba(255,255,255,0.1); color:#fff; font-size:0.82rem; width:280px;">
+        <button onclick="saveBannerApiKey()" style="padding:0.3rem 0.85rem; border-radius:0.375rem;
+                border:none; background:var(--primary-color); color:#fff; font-size:0.82rem;
+                cursor:pointer; font-weight:600;">Save Key</button>
+        <button onclick="document.getElementById('apikey-banner').style.display='none'" style="background:none; border:none; color:rgba(255,255,255,0.5); cursor:pointer; font-size:1.1rem; line-height:1;">✕</button>
+    </div>
+
+    <!-- ── Queue panel ──────────────────────────────────────────── -->
+    <div class="queue-panel">
+        <div class="queue-header">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <h5>Draft Queue</h5>
+                <button class="btn btn-primary btn-sm" onclick="openPipelineModal()" title="Run ingestion pipeline">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Run Pipeline
+                </button>
+            </div>
+            <div class="stats-bar">
+                <span><strong id="hdr-pending">{{ stats.pending_review or 0 }}</strong> pending</span>
+                <span><strong id="hdr-approved">{{ stats.approved or 0 }}</strong> approved</span>
+                <span><strong id="hdr-ingested">{{ stats.articles_ingested or 0 }}</strong> ingested</span>
+            </div>
+        </div>
+        <div class="queue-filters">
+            <button class="filter-btn active" data-status="all" onclick="filterDrafts(this, 'all')">All</button>
+            <button class="filter-btn" data-status="draft" onclick="filterDrafts(this, 'draft')">Pending</button>
+            <button class="filter-btn" data-status="approved" onclick="filterDrafts(this, 'approved')">Approved</button>
+            <button class="filter-btn" data-status="rejected" onclick="filterDrafts(this, 'rejected')">Rejected</button>
+        </div>
+        <div class="draft-list" id="draft-list">
+            <div class="d-flex justify-content-center align-items-center" style="padding:2rem; color:var(--text-secondary); font-size:0.85rem;">
+                Loading drafts…
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Detail panel ─────────────────────────────────────────── -->
+    <div class="detail-panel" id="detail-panel">
+
+        <!-- Toolbar (hidden until draft selected) -->
+        <div class="detail-toolbar" id="detail-toolbar" style="display:none;">
+            <button class="btn btn-success btn-sm" id="btn-approve" onclick="approveDraft()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>
+                Approve
+            </button>
+            <button class="btn btn-outline-danger btn-sm" id="btn-reject" onclick="openRejectModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Reject
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btn-edit" onclick="toggleEditMode()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btn-save-edit" style="display:none;" onclick="saveEdits()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save Edits
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="openRegenerateModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.78"/></svg>
+                Regenerate
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btn-assist" onclick="runEditorAssist()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                AI Feedback
+            </button>
+            <div class="toolbar-spacer"></div>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                    Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#" onclick="exportDraft('html')">HTML (CMS-ready)</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportDraft('markdown')">Markdown</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportDraft('text')">Plain Text</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-state" id="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <h5 style="font-weight:600; color:var(--text-primary);">Select a draft to review</h5>
+            <p style="max-width:320px; font-size:0.88rem;">
+                Pick an article from the queue on the left, or run the pipeline to fetch and classify new articles.
+            </p>
+            <button class="btn btn-primary" onclick="openPipelineModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Run Pipeline
+            </button>
+        </div>
+
+        <!-- Draft content (hidden until selected) -->
+        <div class="detail-content" id="detail-content" style="display:none;">
+
+            <!-- Topic + score row -->
+            <div class="d-flex align-items-center gap-2 mb-1" id="dc-meta"></div>
+
+            <!-- Headline (editable in edit mode) -->
+            <div id="dc-headline-view">
+                <div class="article-headline" id="dc-headline"></div>
+            </div>
+            <div id="dc-headline-edit" style="display:none;">
+                <textarea class="editable-headline" id="edit-headline" rows="2"></textarea>
+            </div>
+
+            <!-- Alt headlines -->
+            <div id="dc-alt-headlines" style="margin-bottom:1rem;"></div>
+
+            <!-- Lede -->
+            <div class="article-lede" id="dc-lede"></div>
+
+            <!-- Body (editable in edit mode) -->
+            <div id="dc-body-view">
+                <div class="article-body" id="dc-body"></div>
+            </div>
+            <div id="dc-body-edit" style="display:none;">
+                <textarea class="editable-body" id="edit-body"></textarea>
+            </div>
+
+            <!-- Why This Matters -->
+            <div class="section-heading">Why This Matters to Event Professionals</div>
+            <div class="why-it-matters" id="dc-why"></div>
+
+            <!-- Key Takeaways -->
+            <div class="section-heading">Key Takeaways</div>
+            <ul class="key-takeaways" id="dc-takeaways"></ul>
+
+            <!-- Sources -->
+            <div class="section-heading">
+                Sources
+                <button class="btn btn-sm btn-link p-0 ms-2" style="font-size:0.75rem;" onclick="toggleSources()">
+                    <span id="sources-toggle-label">Show</span>
+                </button>
+            </div>
+            <div id="dc-sources" style="display:none;"></div>
+
+            <!-- AI Feedback Panel -->
+            <div id="assist-panel" style="display:none; margin-top:1.5rem; border:1px solid var(--border-color); border-radius:0.5rem; overflow:hidden;">
+                <div style="background:var(--secondary-color); padding:0.65rem 1rem; display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:0.8rem; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:0.08em;">AI Editorial Feedback</span>
+                    <button onclick="document.getElementById('assist-panel').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:1rem;line-height:1;">✕</button>
+                </div>
+                <div id="assist-content" style="padding:1rem 1.25rem; font-size:0.85rem;">Loading…</div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ── Run Pipeline Modal ───────────────────────────────────────── -->
+<div class="modal fade" id="pipelineModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-700">Run Editorial Pipeline</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:0.88rem;">
+                    This will fetch articles from configured RSS feeds, classify each for TSNN relevance, and generate AI drafts for articles scoring 75+.
+                </p>
+                <div class="pipeline-log" id="pipeline-log">Waiting to start…</div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-run-pipeline" onclick="runPipeline()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Start
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Reject Modal ─────────────────────────────────────────────── -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Reject Draft</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <select class="form-select form-select-sm" id="reject-reason">
+                        <option value="Not relevant">Not relevant</option>
+                        <option value="Inaccurate">Inaccurate</option>
+                        <option value="Tone mismatch">Tone mismatch</option>
+                        <option value="Already covered">Already covered</option>
+                        <option value="Needs original reporting">Needs original reporting</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Notes (optional)</label>
+                    <textarea class="form-control form-control-sm" id="reject-notes" rows="2" placeholder="Additional context…"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="confirmReject()">Reject Draft</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Regenerate Modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="regenerateModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Regenerate Draft</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:0.85rem;">Provide instructions for the rewrite. The AI will use the original source article plus your guidance.</p>
+                <textarea class="form-control form-control-sm" id="regen-instructions" rows="3"
+                    placeholder="e.g. Focus more on the venue angle. Make it shorter. Add more industry context."></textarea>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-regen-confirm" onclick="confirmRegenerate()">
+                    Regenerate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let allDrafts = [];
+let currentDraft = null;
+let editMode = false;
+let currentFilter = 'all';
+
+// ─── Editor Assist ───────────────────────────────────────────────────────────────────────────
+
+function runEditorAssist() {
+    if (!currentDraft) return;
+    const panel = document.getElementById('assist-panel');
+    const content = document.getElementById('assist-content');
+    panel.style.display = 'block';
+    content.innerHTML = '<div style="color:var(--text-secondary);">Analysing draft with GPT-4o…</div>';
+    document.getElementById('btn-assist').disabled = true;
+
+    // Scroll to panel
+    panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+
+    fetch(`/api/editorial/assist/${currentDraft.id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('btn-assist').disabled = false;
+        if (!data.success) {
+            content.innerHTML = `<div style="color:var(--danger-color);">Error: ${escHtml(data.error || 'Unknown')}</div>`;
+            return;
+        }
+        const f = data.feedback;
+        const scoreColor = f.overall_score >= 7 ? 'var(--success-color)' : f.overall_score >= 5 ? 'var(--warning-color)' : 'var(--danger-color)';
+        const sevColor = s => s === 'high' ? 'var(--danger-color)' : s === 'medium' ? 'var(--warning-color)' : 'var(--text-secondary)';
+
+        let html = `
+        <div style="display:flex;gap:2rem;margin-bottom:1rem;">
+            <div style="text-align:center;">
+                <div style="font-size:2.5rem;font-weight:800;color:${scoreColor};line-height:1;">${f.overall_score}/10</div>
+                <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.08em;">Overall</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:2.5rem;font-weight:800;color:var(--primary-color);line-height:1;">${f.tsnn_voice_score}/10</div>
+                <div style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.08em;">TSNN Voice</div>
+            </div>
+        </div>`;
+
+        if (f.strengths?.length) {
+            html += `<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--success-color);margin-bottom:0.3rem;">Strengths</div><ul style="margin:0 0 1rem;padding-left:1.25rem;">`;
+            f.strengths.forEach(s => { html += `<li style="margin-bottom:0.25rem;">${escHtml(s)}</li>`; });
+            html += '</ul>';
+        }
+        if (f.issues?.length) {
+            html += `<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--danger-color);margin-bottom:0.3rem;">Issues</div><ul style="margin:0 0 1rem;padding-left:1.25rem;">`;
+            f.issues.forEach(i => { html += `<li style="margin-bottom:0.25rem;"><span style="color:${sevColor(i.severity)};font-weight:700;font-size:0.75rem;">[${(i.severity||'').toUpperCase()}]</span> ${escHtml(i.description)}</li>`; });
+            html += '</ul>';
+        }
+        if (f.suggested_improvements?.length) {
+            html += `<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--primary-color);margin-bottom:0.3rem;">Suggested Improvements</div><ul style="margin:0 0 0.5rem;padding-left:1.25rem;">`;
+            f.suggested_improvements.forEach(s => { html += `<li style="margin-bottom:0.25rem;">${escHtml(s)}</li>`; });
+            html += '</ul>';
+        }
+        if (f.missing_context?.length) {
+            html += `<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--warning-color);margin-top:0.75rem;margin-bottom:0.3rem;">Missing Context</div><ul style="margin:0;padding-left:1.25rem;">`;
+            f.missing_context.forEach(s => { html += `<li style="margin-bottom:0.25rem;">${escHtml(s)}</li>`; });
+            html += '</ul>';
+        }
+        content.innerHTML = html;
+    })
+    .catch(err => {
+        document.getElementById('btn-assist').disabled = false;
+        content.innerHTML = `<div style="color:var(--danger-color);">Request failed: ${escHtml(err.message)}</div>`;
+    });
+}
+
+// ─── Sources toggle ───────────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    loadDrafts('all');
+    checkApiKeyStatus();
+});
+
+function checkApiKeyStatus() {
+    fetch('/api/settings/api-key-status')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.configured) {
+                document.getElementById('apikey-banner').style.display = 'flex';
+            }
+        })
+        .catch(() => {}); // silently ignore if endpoint unavailable
+}
+
+function saveBannerApiKey() {
+    const key = document.getElementById('banner-api-key').value.trim();
+    if (!key || !key.startsWith('sk-')) {
+        showToast('Enter a valid OpenAI key (starts with sk-)', 'danger');
+        return;
+    }
+    fetch('/api/settings/api-key', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({api_key: key}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('apikey-banner').style.display = 'none';
+            showToast('API key saved — pipeline ready', 'success');
+        } else {
+            showToast('Failed to save key: ' + (data.error || ''), 'danger');
+        }
+    });
+}
+
+// ─── Draft Loading ────────────────────────────────────────────────────────────
+function loadDrafts(status) {
+    currentFilter = status;
+    fetch(`/api/editorial/drafts?status=${status}`)
+        .then(r => r.json())
+        .then(drafts => {
+            allDrafts = drafts;
+            renderDraftList(drafts);
+        })
+        .catch(err => {
+            document.getElementById('draft-list').innerHTML =
+                `<div class="p-3 text-danger" style="font-size:0.83rem;">Error loading drafts: ${err.message}</div>`;
+        });
+}
+
+function filterDrafts(btn, status) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadDrafts(status);
+}
+
+function renderDraftList(drafts) {
+    const list = document.getElementById('draft-list');
+    if (!drafts.length) {
+        list.innerHTML = `<div class="p-4 text-center" style="color:var(--text-secondary); font-size:0.85rem;">
+            No drafts found.<br><br>
+            <button class="btn btn-sm btn-outline-primary" onclick="openPipelineModal()">Run Pipeline</button>
+        </div>`;
+        return;
+    }
+    list.innerHTML = drafts.map(d => `
+        <div class="draft-item" id="di-${d.id}" onclick="selectDraft(${d.id})">
+            <div class="headline">${escHtml(d.headline)}</div>
+            <div class="meta">
+                <span class="status-dot ${d.status}"></span>
+                <span class="score-badge score-${d.score_color}">${d.relevance_score}</span>
+                <span>${escHtml(d.primary_topic || 'Uncategorized')}</span>
+                <span>·</span>
+                <span>${escHtml(d.source_name || 'Unknown source')}</span>
+            </div>
+            <div class="lede-preview">${escHtml(d.lede || '')}</div>
+        </div>
+    `).join('');
+}
+
+// ─── Select / Display Draft ───────────────────────────────────────────────────
+function selectDraft(id) {
+    // Highlight in list
+    document.querySelectorAll('.draft-item').forEach(el => el.classList.remove('selected'));
+    const el = document.getElementById(`di-${id}`);
+    if (el) el.classList.add('selected');
+
+    fetch(`/api/editorial/draft/${id}`)
+        .then(r => r.json())
+        .then(draft => {
+            currentDraft = draft;
+            renderDraftDetail(draft);
+        });
+}
+
+function renderDraftDetail(draft) {
+    editMode = false;
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('detail-content').style.display = 'block';
+    document.getElementById('detail-toolbar').style.display = 'flex';
+    document.getElementById('dc-headline-edit').style.display = 'none';
+    document.getElementById('dc-headline-view').style.display = 'block';
+    document.getElementById('dc-body-edit').style.display = 'none';
+    document.getElementById('dc-body-view').style.display = 'block';
+    document.getElementById('btn-edit').style.display = '';
+    document.getElementById('btn-save-edit').style.display = 'none';
+
+    // Show/hide approve & reject based on status
+    const isActionable = draft.status === 'draft';
+    document.getElementById('btn-approve').style.display = isActionable ? '' : 'none';
+    document.getElementById('btn-reject').style.display = isActionable ? '' : 'none';
+
+    // Meta row
+    const confidence = draft.confidence_score || 0;
+    const pips = Array.from({length: 10}, (_, i) =>
+        `<span class="confidence-pip ${i < confidence ? 'pip-filled' : 'pip-empty'}"></span>`
+    ).join('');
+    document.getElementById('dc-meta').innerHTML = `
+        <span class="article-topic-tag">${escHtml(draft.primary_topic || 'Uncategorized')}</span>
+        <span class="score-badge score-${draft.score_color}" style="font-size:0.75rem;">${draft.relevance_score} – ${draft.score_label}</span>
+        <span style="font-size:0.75rem; color:var(--text-secondary); margin-left:0.5rem;">
+            Confidence: ${pips} ${confidence}/10
+        </span>
+        <span class="badge ${draft.status === 'approved' ? 'bg-success' : draft.status === 'rejected' ? 'bg-danger' : 'bg-secondary'} ms-auto" style="font-size:0.72rem;">${draft.status.toUpperCase()}</span>
+    `;
+
+    // Headline
+    document.getElementById('dc-headline').textContent = draft.headline;
+    document.getElementById('edit-headline').value = draft.headline;
+
+    // Alt headlines
+    const altContainer = document.getElementById('dc-alt-headlines');
+    if (draft.alt_headlines && draft.alt_headlines.length) {
+        altContainer.innerHTML = `<div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.3rem; font-weight:600;">ALTERNATIVE HEADLINES</div>` +
+            draft.alt_headlines.map(h =>
+                `<button class="alt-headline-btn" onclick="useHeadline(this, '${escAttr(h)}')">${escHtml(h)}</button>`
+            ).join('');
+    } else {
+        altContainer.innerHTML = '';
+    }
+
+    // Lede
+    document.getElementById('dc-lede').textContent = draft.lede || '';
+
+    // Body
+    document.getElementById('dc-body').textContent = draft.body || '';
+    document.getElementById('edit-body').value = draft.body || '';
+
+    // Why it matters
+    document.getElementById('dc-why').textContent = draft.why_it_matters || '';
+
+    // Takeaways
+    const takeawayList = document.getElementById('dc-takeaways');
+    takeawayList.innerHTML = (draft.key_takeaways || [])
+        .map(t => `<li>${escHtml(t)}</li>`).join('');
+
+    // Sources
+    const sourcesDiv = document.getElementById('dc-sources');
+    const cited = draft.sources_cited || [];
+    if (draft.source_url) {
+        const srcCard = `<div class="source-card">
+            <strong>${escHtml(draft.source_name || 'Source')}</strong><br>
+            <a href="${escHtml(draft.source_url)}" target="_blank">${escHtml(draft.source_title || draft.source_url)}</a>
+            ${draft.relevance_justification ? `<div style="margin-top:0.35rem; font-size:0.78rem; color:var(--text-secondary);">
+                <em>${escHtml(draft.relevance_justification)}</em></div>` : ''}
+        </div>`;
+        sourcesDiv.innerHTML = srcCard;
+    }
+    if (cited.length) {
+        sourcesDiv.innerHTML += cited.map(s => `
+            <div class="source-card">
+                <strong>${escHtml(s.publication || '')}</strong>
+                ${s.date ? `<span style="color:var(--text-secondary); margin-left:0.5rem;">${escHtml(s.date)}</span>` : ''}
+                ${s.url ? `<br><a href="${escHtml(s.url)}" target="_blank">${escHtml(s.url)}</a>` : ''}
+            </div>`).join('');
+    }
+    if (!draft.source_url && !cited.length) {
+        sourcesDiv.innerHTML = '<div class="source-card" style="color:var(--text-secondary);">No source attribution available</div>';
+    }
+    document.getElementById('dc-sources').style.display = 'none';
+    document.getElementById('sources-toggle-label').textContent = 'Show';
+}
+
+// ─── Alt headline selection ───────────────────────────────────────────────────
+function useHeadline(btn, headline) {
+    document.getElementById('dc-headline').textContent = headline;
+    document.getElementById('edit-headline').value = headline;
+    if (currentDraft) currentDraft.headline = headline;
+    // Visual feedback
+    btn.style.background = 'rgba(0,152,180,0.08)';
+    btn.style.borderColor = 'var(--primary-color)';
+    btn.style.color = 'var(--primary-color)';
+}
+
+// ─── Edit mode ────────────────────────────────────────────────────────────────
+function toggleEditMode() {
+    editMode = !editMode;
+    document.getElementById('dc-headline-view').style.display = editMode ? 'none' : 'block';
+    document.getElementById('dc-headline-edit').style.display = editMode ? 'block' : 'none';
+    document.getElementById('dc-body-view').style.display = editMode ? 'none' : 'block';
+    document.getElementById('dc-body-edit').style.display = editMode ? 'block' : 'none';
+    document.getElementById('btn-edit').style.display = editMode ? 'none' : '';
+    document.getElementById('btn-save-edit').style.display = editMode ? '' : 'none';
+}
+
+function saveEdits() {
+    if (!currentDraft) return;
+    const headline = document.getElementById('edit-headline').value.trim();
+    const body = document.getElementById('edit-body').value.trim();
+    fetch(`/api/editorial/edit/${currentDraft.id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({headline, body}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Update display
+            document.getElementById('dc-headline').textContent = headline;
+            document.getElementById('dc-body').textContent = body;
+            toggleEditMode();
+            showToast('Edits saved', 'success');
+        } else {
+            showToast('Failed to save edits', 'danger');
+        }
+    });
+}
+
+// ─── Approve ──────────────────────────────────────────────────────────────────
+function approveDraft() {
+    if (!currentDraft) return;
+    fetch(`/api/editorial/approve/${currentDraft.id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('✓ Draft approved', 'success');
+            currentDraft.status = 'approved';
+            document.getElementById('btn-approve').style.display = 'none';
+            document.getElementById('btn-reject').style.display = 'none';
+            updateDraftInList(currentDraft.id, 'approved');
+            refreshStats();
+        }
+    });
+}
+
+// ─── Reject ───────────────────────────────────────────────────────────────────
+function openRejectModal() {
+    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    modal.show();
+}
+function confirmReject() {
+    if (!currentDraft) return;
+    const reason = document.getElementById('reject-reason').value;
+    const notes = document.getElementById('reject-notes').value;
+    fetch(`/api/editorial/reject/${currentDraft.id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({reason, notes}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+            showToast('Draft rejected', 'danger');
+            currentDraft.status = 'rejected';
+            document.getElementById('btn-approve').style.display = 'none';
+            document.getElementById('btn-reject').style.display = 'none';
+            updateDraftInList(currentDraft.id, 'rejected');
+            refreshStats();
+        }
+    });
+}
+
+// ─── Regenerate ───────────────────────────────────────────────────────────────
+function openRegenerateModal() {
+    const modal = new bootstrap.Modal(document.getElementById('regenerateModal'));
+    modal.show();
+}
+function confirmRegenerate() {
+    if (!currentDraft) return;
+    const instructions = document.getElementById('regen-instructions').value;
+    const btn = document.getElementById('btn-regen-confirm');
+    btn.disabled = true;
+    btn.textContent = 'Regenerating…';
+    fetch(`/api/editorial/regenerate/${currentDraft.id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({instructions}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate';
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('regenerateModal')).hide();
+            currentDraft = data.draft;
+            renderDraftDetail(data.draft);
+            showToast('Draft regenerated', 'success');
+        } else {
+            showToast('Regeneration failed: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate';
+        showToast('Regeneration failed', 'danger');
+    });
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function exportDraft(fmt) {
+    if (!currentDraft) return;
+    window.open(`/api/editorial/export/${currentDraft.id}/${fmt}`, '_blank');
+}
+
+// ─── Pipeline ─────────────────────────────────────────────────────────────────
+function openPipelineModal() {
+    document.getElementById('pipeline-log').textContent = 'Ready. Click Start to begin.';
+    document.getElementById('btn-run-pipeline').disabled = false;
+    document.getElementById('btn-run-pipeline').textContent = 'Start';
+    new bootstrap.Modal(document.getElementById('pipelineModal')).show();
+}
+
+function runPipeline() {
+    const log = document.getElementById('pipeline-log');
+    const btn = document.getElementById('btn-run-pipeline');
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+    log.textContent = '⚡ Starting pipeline...\n';
+
+    fetch('/api/editorial/ingest', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Run Again';
+        if (data.success) {
+            const s = data.stats;
+            log.textContent += `✓ Articles fetched:      ${s.articles_fetched}\n`;
+            log.textContent += `✓ Duplicates skipped:    ${s.duplicates_skipped}\n`;
+            log.textContent += `✓ Classified:            ${s.classified}\n`;
+            log.textContent += `✓ Queued for draft:      ${s.queued_for_draft}\n`;
+            log.textContent += `✓ Drafts generated:      ${s.drafts_generated}\n`;
+            if (s.errors && s.errors.length) {
+                log.textContent += `\n⚠ Errors (${s.errors.length}):\n`;
+                s.errors.forEach(e => { log.textContent += `  · ${e}\n`; });
+            }
+            log.textContent += `\n✅ Pipeline complete (${s.completed_at})`;
+            // Reload draft list
+            loadDrafts(currentFilter);
+            refreshStats();
+        } else {
+            log.textContent += `❌ Pipeline failed: ${data.error || 'Unknown error'}`;
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+        log.textContent += `❌ Error: ${err.message}`;
+    });
+}
+
+// ─── Sources toggle ───────────────────────────────────────────────────────────
+function toggleSources() {
+    const div = document.getElementById('dc-sources');
+    const lbl = document.getElementById('sources-toggle-label');
+    if (div.style.display === 'none') {
+        div.style.display = 'block';
+        lbl.textContent = 'Hide';
+    } else {
+        div.style.display = 'none';
+        lbl.textContent = 'Show';
+    }
+}
+
+// ─── Stats refresh ────────────────────────────────────────────────────────────
+function refreshStats() {
+    fetch('/api/editorial/stats')
+        .then(r => r.json())
+        .then(s => {
+            document.getElementById('hdr-pending').textContent = s.pending_review || 0;
+            document.getElementById('hdr-approved').textContent = s.approved || 0;
+            document.getElementById('hdr-ingested').textContent = s.articles_ingested || 0;
+            document.getElementById('sidebar-pending-count').textContent = s.pending_review || 0;
+            document.getElementById('sidebar-approved-count').textContent = s.approved || 0;
+            document.getElementById('sidebar-rejected-count').textContent = s.rejected || 0;
+        });
+}
+
+function updateDraftInList(id, newStatus) {
+    const el = document.getElementById(`di-${id}`);
+    if (!el) return;
+    const dot = el.querySelector('.status-dot');
+    if (dot) {
+        dot.className = `status-dot ${newStatus}`;
+    }
+}
+
+// ─── Toast helper ─────────────────────────────────────────────────────────────
+function showToast(message, type) {
+    const container = document.getElementById('toast-container') || (() => {
+        const c = document.createElement('div');
+        c.id = 'toast-container';
+        c.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;';
+        document.body.appendChild(c);
+        return c;
+    })();
+    const toast = document.createElement('div');
+    const bg = type === 'success' ? 'var(--success-color)' : type === 'danger' ? 'var(--danger-color)' : 'var(--secondary-color)';
+    toast.style.cssText = `background:${bg};color:#fff;padding:0.6rem 1.1rem;border-radius:0.5rem;font-size:0.85rem;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:1;transition:opacity 0.4s;`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 2500);
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
+function escAttr(str) {
+    return (str || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

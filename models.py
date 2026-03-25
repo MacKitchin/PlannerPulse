@@ -283,6 +283,116 @@ def migrate_from_json():
     finally:
         session.close()
 
+class IngestedArticle(Base):
+    """Article ingested from RSS/API sources with TSNN relevance scoring"""
+    __tablename__ = 'ingested_articles'
+
+    id = Column(Integer, primary_key=True)
+    external_url = Column(String(1000), unique=True, nullable=False)
+    title = Column(String(500), nullable=False)
+    content = Column(Text)
+    summary = Column(Text)
+    author = Column(String(200))
+    source_name = Column(String(200))
+    published_at = Column(String(200))
+    fetched_at = Column(DateTime, default=datetime.utcnow)
+
+    # TSNN relevance classification
+    relevance_score = Column(Integer)          # 0–100
+    primary_topic = Column(String(100))
+    topic_tags = Column(JSON, default=list)
+    relevance_justification = Column(Text)
+    confidence = Column(String(20))            # high, medium, low
+    suggested_angle = Column(Text)
+
+    # Processing status
+    status = Column(String(50), default='pending')  # pending, classified, draft_generated, archived
+
+    # Relationship to generated draft
+    draft = relationship('Draft', back_populates='source_article', uselist=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_ingested_relevance', 'relevance_score'),
+        Index('idx_ingested_status', 'status'),
+    )
+
+    def __repr__(self):
+        return f"<IngestedArticle(id={self.id}, title='{self.title[:50]}', score={self.relevance_score})>"
+
+
+class Draft(Base):
+    """AI-generated article draft in TSNN editorial style awaiting human review"""
+    __tablename__ = 'drafts'
+
+    id = Column(Integer, primary_key=True)
+    article_id = Column(Integer, ForeignKey('ingested_articles.id'), nullable=True)
+    source_article = relationship('IngestedArticle', back_populates='draft')
+
+    # Generated content
+    headline = Column(String(300), nullable=False)
+    alt_headlines = Column(JSON, default=list)      # list of strings
+    lede = Column(Text)
+    body = Column(Text)
+    why_it_matters = Column(Text)
+    key_takeaways = Column(JSON, default=list)      # list of strings
+    sources_cited = Column(JSON, default=list)      # list of {publication, date, url}
+
+    # Quality & classification metadata
+    relevance_score = Column(Integer)
+    primary_topic = Column(String(100))
+    tags = Column(JSON, default=list)
+    confidence_score = Column(Integer)              # 1–10 LLM self-assessment
+    word_count = Column(Integer)
+
+    # Editorial status
+    status = Column(String(30), default='draft')    # draft, in_review, approved, rejected, published
+    generated_at = Column(DateTime, default=datetime.utcnow)
+
+    # Editor-saved modifications
+    edited_headline = Column(String(300))
+    edited_body = Column(Text)
+
+    # Audit trail
+    reviews = relationship('EditorialReview', back_populates='draft', cascade='all, delete-orphan')
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_draft_status_date', 'status', 'generated_at'),
+        Index('idx_draft_topic', 'primary_topic'),
+    )
+
+    def __repr__(self):
+        return f"<Draft(id={self.id}, headline='{self.headline[:50]}', status='{self.status}')>"
+
+
+class EditorialReview(Base):
+    """Audit trail of every editorial action taken on a draft"""
+    __tablename__ = 'editorial_reviews'
+
+    id = Column(Integer, primary_key=True)
+    draft_id = Column(Integer, ForeignKey('drafts.id'), nullable=False)
+    draft = relationship('Draft', back_populates='reviews')
+
+    action = Column(String(20), nullable=False)     # approve, reject, edit, regenerate
+    rejection_reason = Column(String(100))          # category if rejected
+    notes = Column(Text)
+    edited_headline = Column(String(300))
+    edited_body = Column(Text)
+
+    reviewed_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_review_draft_date', 'draft_id', 'reviewed_at'),
+    )
+
+    def __repr__(self):
+        return f"<EditorialReview(id={self.id}, draft_id={self.draft_id}, action='{self.action}')>"
+
+
 if __name__ == "__main__":
     # Initialize database when run directly
     init_database()

@@ -9,7 +9,7 @@ from typing import List, Dict, Optional
 from sqlalchemy import desc, func
 from models import (
     get_session, Article, Newsletter, NewsletterArticle, Sponsor,
-    SponsorRotation, RSSSource
+    SponsorRotation, RSSSource, IngestedArticle, Draft, EditorialReview
 )
 from contextlib import contextmanager
 
@@ -627,6 +627,288 @@ class DatabaseRSSManager:
             self.session.rollback()
             logger.error(f"Error deactivating RSS source: {e}")
             return False
+
+class DraftManager:
+    """Manages the TSNN editorial pipeline: ingested articles, drafts, and editorial reviews."""
+
+    def __init__(self):
+        self._session = None
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = get_session()
+        return self._session
+
+    def close_session(self):
+        if self._session is not None:
+            self._session.close()
+            self._session = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close_session()
+
+    # ------------------------------------------------------------------
+    # IngestedArticle methods
+    # ------------------------------------------------------------------
+
+    def is_duplicate_url(self, url: str) -> bool:
+        """Return True if an article with this URL already exists."""
+        try:
+            return (
+                self.session.query(IngestedArticle)
+                .filter(IngestedArticle.external_url == url)
+                .first()
+            ) is not None
+        except Exception as e:
+            logger.error(f"Duplicate check error: {e}")
+            return False
+
+    def save_ingested_article(self, article_data: Dict) -> Optional[IngestedArticle]:
+        """Persist a raw article dict as an IngestedArticle record."""
+        try:
+            url = article_data.get("link") or article_data.get("external_url", "")
+            if not url:
+                return None
+            record = IngestedArticle(
+                external_url=url,
+                title=article_data.get("title", "")[:499],
+                content=article_data.get("content") or article_data.get("full_content", ""),
+                summary=article_data.get("summary", ""),
+                author=article_data.get("author", ""),
+                source_name=(
+                    article_data.get("source_name")
+                    or article_data.get("source", "")
+                ),
+                published_at=(
+                    article_data.get("published_at")
+                    or article_data.get("published", "")
+                ),
+                status="pending",
+            )
+            self.session.add(record)
+            self.session.commit()
+            return record
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"save_ingested_article error: {e}")
+            return None
+
+    def update_classification(self, article_id: int, classification: Dict) -> bool:
+        """Store classifier results on an IngestedArticle."""
+        try:
+            record = self.session.get(IngestedArticle, article_id)
+            if not record:
+                return False
+            record.relevance_score = int(classification.get("relevance_score", 0))
+            record.primary_topic = classification.get("primary_topic", "")
+            record.topic_tags = classification.get("secondary_topics") or classification.get("topic_tags", [])
+            record.relevance_justification = classification.get("justification", "")
+            record.confidence = classification.get("confidence", "")
+            record.suggested_angle = classification.get("suggested_angle", "")
+            record.status = "classified"
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"update_classification error: {e}")
+            return False
+
+    def archive_article(self, article_id: int) -> bool:
+        """Mark a low-relevance article as archived."""
+        try:
+            record = self.session.get(IngestedArticle, article_id)
+            if record:
+                record.status = "archived"
+                self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"archive_article error: {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # Draft methods
+    # ------------------------------------------------------------------
+
+    def save_draft(self, article_id: int, draft_data: Dict, relevance_score: int = 0) -> Optional[Draft]:
+        """Persist a generated draft and mark the source article as draft_generated."""
+        try:
+            draft = Draft(
+                article_id=article_id,
+                headline=draft_data.get("headline", "")[:299],
+                alt_headlines=draft_data.get("alt_headlines", []),
+                lede=draft_data.get("lede", ""),
+                body=draft_data.get("body", ""),
+                why_it_matters=draft_data.get("why_it_matters", ""),
+                key_takeaways=draft_data.get("key_takeaways", []),
+                sources_cited=draft_data.get("sources_cited", []),
+                relevance_score=relevance_score or draft_data.get("relevance_score"),
+                primary_topic=draft_data.get("primary_topic", ""),
+                tags=draft_data.get("tags", []),
+                confidence_score=draft_data.get("confidence_score"),
+                word_count=draft_data.get("word_count"),
+                status="draft",
+            )
+            self.session.add(draft)
+            # Mark source article status
+            article = self.session.get(IngestedArticle, article_id)
+            if article:
+                article.status = "draft_generated"
+            self.session.commit()
+            logger.info(f"Saved draft id={draft.id}: '{draft.headline[:60]}'")
+            return draft
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"save_draft error: {e}")
+            return None
+
+    def get_draft_queue(self, status: str = "draft") -> List[Draft]:
+        """Return drafts filtered by status, newest first."""
+        try:
+            return (
+                self.session.query(Draft)
+                .filter(Draft.status == status)
+                .order_by(desc(Draft.relevance_score), desc(Draft.generated_at))
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"get_draft_queue error: {e}")
+            return []
+
+    def get_all_drafts(self, limit: int = 100) -> List[Draft]:
+        """Return all drafts ordered by date."""
+        try:
+            return (
+                self.session.query(Draft)
+                .order_by(desc(Draft.generated_at))
+                .limit(limit)
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"get_all_drafts error: {e}")
+            return []
+
+    def get_draft_by_id(self, draft_id: int) -> Optional[Draft]:
+        """Fetch a single draft by primary key."""
+        try:
+            return self.session.get(Draft, draft_id)
+        except Exception as e:
+            logger.error(f"get_draft_by_id error: {e}")
+            return None
+
+    def approve_draft(self, draft_id: int, notes: str = "") -> bool:
+        """Approve a draft and record the editorial action."""
+        try:
+            draft = self.session.get(Draft, draft_id)
+            if not draft:
+                return False
+            draft.status = "approved"
+            review = EditorialReview(
+                draft_id=draft_id,
+                action="approve",
+                notes=notes,
+            )
+            self.session.add(review)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"approve_draft error: {e}")
+            return False
+
+    def reject_draft(self, draft_id: int, reason: str = "", notes: str = "") -> bool:
+        """Reject a draft and record the editorial action."""
+        try:
+            draft = self.session.get(Draft, draft_id)
+            if not draft:
+                return False
+            draft.status = "rejected"
+            review = EditorialReview(
+                draft_id=draft_id,
+                action="reject",
+                rejection_reason=reason,
+                notes=notes,
+            )
+            self.session.add(review)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"reject_draft error: {e}")
+            return False
+
+    def update_draft_content(self, draft_id: int, headline: str, body: str) -> bool:
+        """Save editor modifications to a draft."""
+        try:
+            draft = self.session.get(Draft, draft_id)
+            if not draft:
+                return False
+            draft.edited_headline = headline[:299] if headline else None
+            draft.edited_body = body if body else None
+            review = EditorialReview(
+                draft_id=draft_id,
+                action="edit",
+                edited_headline=headline,
+                edited_body=body,
+            )
+            self.session.add(review)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"update_draft_content error: {e}")
+            return False
+
+    def update_draft_after_regeneration(self, draft_id: int, draft_data: Dict) -> bool:
+        """Replace a draft's content with freshly generated data."""
+        try:
+            draft = self.session.get(Draft, draft_id)
+            if not draft:
+                return False
+            draft.headline = draft_data.get("headline", draft.headline)[:299]
+            draft.alt_headlines = draft_data.get("alt_headlines", draft.alt_headlines)
+            draft.lede = draft_data.get("lede", draft.lede)
+            draft.body = draft_data.get("body", draft.body)
+            draft.why_it_matters = draft_data.get("why_it_matters", draft.why_it_matters)
+            draft.key_takeaways = draft_data.get("key_takeaways", draft.key_takeaways)
+            draft.sources_cited = draft_data.get("sources_cited", draft.sources_cited)
+            draft.confidence_score = draft_data.get("confidence_score", draft.confidence_score)
+            draft.word_count = draft_data.get("word_count", draft.word_count)
+            draft.edited_headline = None
+            draft.edited_body = None
+            draft.status = "draft"
+            review = EditorialReview(draft_id=draft_id, action="regenerate")
+            self.session.add(review)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            logger.error(f"update_draft_after_regeneration error: {e}")
+            return False
+
+    def get_draft_stats(self) -> Dict:
+        """Return counts for each draft status."""
+        try:
+            total = self.session.query(Draft).count()
+            pending = self.session.query(Draft).filter(Draft.status == "draft").count()
+            approved = self.session.query(Draft).filter(Draft.status == "approved").count()
+            rejected = self.session.query(Draft).filter(Draft.status == "rejected").count()
+            articles_ingested = self.session.query(IngestedArticle).count()
+            return {
+                "total_drafts": total,
+                "pending_review": pending,
+                "approved": approved,
+                "rejected": rejected,
+                "articles_ingested": articles_ingested,
+            }
+        except Exception as e:
+            logger.error(f"get_draft_stats error: {e}")
+            return {"total_drafts": 0, "pending_review": 0, "approved": 0, "rejected": 0, "articles_ingested": 0}
+
 
 def migrate_existing_data():
     """Migrate existing JSON data to database"""

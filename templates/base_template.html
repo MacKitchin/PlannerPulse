@@ -1,456 +1,280 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }}{% if subject_line and subject_line != title %} - {{ subject_line }}{% endif %}</title>
-    
-    <!-- Email client optimizations -->
+
     <meta name="x-apple-disable-message-reformatting">
     <meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">
-    
-    <!-- Preview text for email clients -->
-    <div style="display: none; font-size: 1px; color: #fefefe; line-height: 1px; font-family: Arial, sans-serif; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
-        {{ preview_text or "Your latest meeting industry updates and insights" }}
+    <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#fff;">
+        {{ preview_text or "Your essential briefing on the trade show and meetings industry." }}
     </div>
-    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        
-        /* Reset & Base */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        @import url('https://fonts.googleapis.com/css2?family=Georgia&family=Inter:wght@400;500;600;700&display=swap');
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            background-color: #f5f5f5;
+            background-color: #EDEFF2;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 16px;
-            line-height: 1.5;
-            color: #1a1a1a;
-            -webkit-text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
+            font-size: 16px; line-height: 1.6; color: #1B2A3D;
+            -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;
         }
-        
-        /* Main Container */
-        .wrapper {
-            background-color: #f5f5f5;
-            padding: 20px 0;
+        .wrapper { background: #EDEFF2; padding: 32px 16px; }
+        .email-outer {
+            max-width: 620px; margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #D0D7DF;
         }
-        
-        .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
+
+        /* ── Masthead ─────────────────────────────────────── */
+        .masthead {
+            background: #1B2A3D;
+            padding: 0;
         }
-        
-        /* Header */
-        .header {
-            background: #636FEE;
+        .masthead-inner {
+            padding: 22px 40px 18px;
+            border-bottom: 4px solid #0098B4;
+            text-align: center;
+        }
+        .pub-eyebrow {
+            font-size: 10px; font-weight: 600; letter-spacing: 0.18em;
+            text-transform: uppercase; color: #0098B4; margin-bottom: 8px;
+        }
+        .pub-name {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 36px; font-weight: normal; color: #FFFFFF;
+            letter-spacing: -0.5px; line-height: 1;
+        }
+        .pub-tagline {
+            font-size: 12px; color: rgba(255,255,255,0.55);
+            font-weight: 400; margin-top: 8px; letter-spacing: 0.03em;
+        }
+        .masthead-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 9px 40px;
+            background: #142231;
+            font-size: 11px; color: rgba(255,255,255,0.45);
+            font-weight: 500; letter-spacing: 0.04em;
+        }
+
+        /* ── Content shell ────────────────────────────────── */
+        .content { padding: 36px 40px 12px; }
+
+        /* ── Section label ────────────────────────────────── */
+        .section-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.14em; color: #0098B4;
+            border-bottom: 1px solid #0098B4;
+            padding-bottom: 6px; margin-bottom: 28px;
+        }
+
+        /* ── Article ─────────────────────────────────────── */
+        .article { padding-bottom: 28px; margin-bottom: 28px; border-bottom: 1px solid #D9DFE6; }
+        .article:last-of-type { border-bottom: none; margin-bottom: 0; }
+
+        .article-kicker {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.13em; color: #0098B4; margin-bottom: 8px;
+        }
+        .article-headline {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 21px; font-weight: normal; line-height: 1.3;
+            color: #0F1C2B; margin-bottom: 10px;
+        }
+        .article-headline a {
+            color: #0F1C2B; text-decoration: none;
+        }
+        .article-headline a:hover { color: #0098B4; text-decoration: underline; }
+
+        .article-body {
+            font-size: 15px; line-height: 1.72; color: #3A4A5C;
+            margin-bottom: 14px;
+        }
+
+        /* Pull-quote / insight block */
+        .insight-block {
+            border-left: 3px solid #0098B4;
+            padding: 10px 16px;
+            margin: 16px 0;
+            background: #F5F8FA;
+        }
+        .insight-label {
+            font-size: 9px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.15em; color: #0098B4; margin-bottom: 5px;
+        }
+        .insight-text {
+            font-size: 14px; line-height: 1.6; color: #1B2A3D; font-style: italic;
+        }
+
+        .article-source {
+            font-size: 12px; color: #7A8A9A; font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .article-cta {
+            font-size: 13px; font-weight: 600; color: #0098B4;
+            text-decoration: none;
+        }
+        .article-cta:hover { text-decoration: underline; }
+
+        /* ── Sponsor ─────────────────────────────────────── */
+        .sponsor-wrapper {
+            border-top: 1px solid #D9DFE6;
+            border-bottom: 1px solid #D9DFE6;
+            margin: 8px 0 28px;
+        }
+        .sponsor-inner {
             padding: 24px 40px;
+            background: #F5F8FA;
         }
-        
-        .header-content {
-            text-align: center;
+        .sponsor-eyebrow {
+            font-size: 9px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.16em; color: #7A8A9A; margin-bottom: 10px;
         }
-        
-        .logo {
-            font-size: 32px;
-            font-weight: 800;
-            color: #ffffff;
-            letter-spacing: -1px;
-            margin: 0;
+        .sponsor-name {
+            font-size: 14px; font-weight: 700; color: #0098B4; margin-bottom: 6px;
         }
-        
-        .tagline {
-            font-size: 14px;
-            color: #ffffff;
-            opacity: 0.9;
-            margin-top: 4px;
+        .sponsor-message {
+            font-size: 14px; line-height: 1.65; color: #3A4A5C; margin-bottom: 12px;
         }
-        
-        /* Date Bar */
-        .date-bar {
-            background: #fafbfc;
-            padding: 16px 40px;
-            border-bottom: 1px solid #e5e5e5;
-            text-align: center;
-            font-size: 14px;
-            color: #666;
-            font-weight: 500;
+        .sponsor-link {
+            font-size: 13px; font-weight: 700; color: #0098B4; text-decoration: none;
+            border: 1px solid #0098B4; padding: 5px 14px; display: inline-block;
         }
-        
-        /* Main Content */
-        .content {
-            padding: 32px 40px;
+        .sponsor-link:hover { background: #0098B4; color: #fff; }
+
+        /* ── Footer ──────────────────────────────────────── */
+        .footer {
+            background: #1B2A3D;
+            padding: 24px 40px;
+            border-top: 3px solid #0098B4;
         }
-        
-        /* Section Headers */
-        .section-title {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: #636FEE;
-            margin: 0 0 20px 0;
-            display: flex;
-            align-items: center;
+        .footer-pub {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 16px; color: #fff; margin-bottom: 12px;
         }
-        
-        .section-title::after {
-            content: '';
-            flex: 1;
-            height: 2px;
-            background: #636FEE;
-            margin-left: 12px;
-        }
-        
-        /* Story Card */
-        .story-card {
-            background: #fafbfc;
-            border: 1px solid #e5e5e5;
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 20px;
-            transition: all 0.2s ease;
-        }
-        
-        .story-card:hover {
-            border-color: #636FEE;
-            box-shadow: 0 2px 8px rgba(99, 111, 238, 0.1);
-        }
-        
-        .story-number {
-            display: inline-block;
-            background: #636FEE;
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 4px;
+        .footer-links {
             margin-bottom: 12px;
         }
-        
-        .story-title {
-            font-size: 20px;
-            font-weight: 700;
-            line-height: 1.3;
-            margin: 0 0 12px 0;
-        }
-        
-        .story-title a {
-            color: #1a1a1a;
-            text-decoration: none;
-        }
-        
-        .story-title a:hover {
-            color: #636FEE;
-        }
-        
-        .story-summary {
-            font-size: 15px;
-            line-height: 1.6;
-            color: #4a4a4a;
-            margin: 0 0 16px 0;
-        }
-        
-        .story-takeaway {
-            background: #E5E9F7;
-            border-radius: 6px;
-            padding: 16px;
-            margin: 16px 0;
-        }
-        
-        .takeaway-label {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #636FEE;
-            margin-bottom: 6px;
-        }
-        
-        .takeaway-text {
-            font-size: 14px;
-            line-height: 1.5;
-            color: #243C5A;
-            font-weight: 500;
-        }
-        
-        .read-more {
-            display: inline-block;
-            font-size: 14px;
-            font-weight: 600;
-            color: #636FEE;
-            text-decoration: none;
-            margin-top: 8px;
-        }
-        
-        .read-more:hover {
-            text-decoration: underline;
-        }
-        
-        /* Sponsor CTA Block */
-        .sponsor-block {
-            background: linear-gradient(135deg, #636FEE 0%, #5058E5 100%);
-            border-radius: 12px;
-            padding: 32px;
-            margin: 40px 0;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .sponsor-block::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            animation: pulse 4s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(0.8); opacity: 0.5; }
-            50% { transform: scale(1.2); opacity: 0.8; }
-        }
-        
-        .sponsor-label {
-            display: inline-block;
-            background: rgba(255,255,255,0.2);
-            color: #ffffff;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            margin-bottom: 16px;
-        }
-        
-        .sponsor-title {
-            color: #ffffff;
-            font-size: 24px;
-            font-weight: 700;
-            margin: 0 0 12px 0;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .sponsor-message {
-            color: #ffffff;
-            font-size: 16px;
-            line-height: 1.6;
-            margin: 0 0 24px 0;
-            opacity: 0.95;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .sponsor-cta {
-            display: inline-block;
-            background: #ffffff;
-            color: #636FEE;
-            padding: 14px 32px;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 16px;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .sponsor-cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            text-decoration: none;
-        }
-        
-        /* Divider */
-        .divider {
-            height: 40px;
-        }
-        
-        /* Footer */
-        .footer {
-            background: #fafbfc;
-            padding: 32px 40px;
-            border-top: 1px solid #e5e5e5;
-        }
-        
-        .footer-content {
-            text-align: center;
-        }
-        
-        .footer-logo {
-            font-size: 18px;
-            font-weight: 700;
-            color: #636FEE;
-            margin-bottom: 16px;
-        }
-        
-        .footer-links {
-            margin-bottom: 16px;
-        }
-        
         .footer-links a {
-            color: #666;
-            text-decoration: none;
-            font-size: 14px;
-            margin: 0 12px;
-            font-weight: 500;
+            color: rgba(255,255,255,0.5); font-size: 12px;
+            text-decoration: none; margin-right: 16px;
+            font-weight: 500; letter-spacing: 0.03em;
         }
-        
-        .footer-links a:hover {
-            color: #636FEE;
+        .footer-links a:hover { color: #0098B4; }
+        .footer-legal {
+            font-size: 11px; color: rgba(255,255,255,0.3); line-height: 1.7;
         }
-        
-        .footer-meta {
-            font-size: 13px;
-            color: #999;
-            line-height: 1.6;
-        }
-        
-        .footer-meta a {
-            color: #999;
-            text-decoration: underline;
-        }
-        
-        /* Mobile Styles */
-        @media only screen and (max-width: 600px) {
-            .email-container {
-                width: 100% !important;
-            }
-            
-            .header {
-                padding: 20px !important;
-            }
-            
-            .content {
-                padding: 20px !important;
-            }
-            
-            .story-card {
-                padding: 16px !important;
-            }
-            
-            .sponsor-block {
-                padding: 24px !important;
-            }
-            
-            .footer {
-                padding: 24px 20px !important;
-            }
-        }
-        
+        .footer-legal a { color: rgba(255,255,255,0.4); text-decoration: underline; }
 
+        /* ── Mobile ──────────────────────────────────────── */
+        @media only screen and (max-width: 600px) {
+            .masthead-inner, .content, .sponsor-inner, .footer { padding-left: 20px !important; padding-right: 20px !important; }
+            .masthead-meta { padding-left: 20px; padding-right: 20px; }
+            .pub-name { font-size: 28px !important; }
+            .article-headline { font-size: 18px !important; }
+        }
     </style>
 </head>
 <body>
-    <div class="wrapper">
-        <div class="email-container">
-            <!-- Header -->
-            <div class="header">
-                <div class="header-content">
-                    <h1 class="logo">PlannerPulse</h1>
-                    <p class="tagline">The Meeting Industry's Essential Daily Brief</p>
-                </div>
-            </div>
-            
-            <!-- Date Bar -->
-            <div class="date-bar">
-                {{ generation_date or "Today's Edition" }}
-            </div>
-            
-            <!-- Main Content -->
-            <div class="content">
-                <!-- Top Stories Section -->
-                <h2 class="section-title">TOP STORIES</h2>
-                
-                {% if stories %}
-                    {% for story in stories %}
-                    <div class="story-card">
-                        <span class="story-number">{{ loop.index }}</span>
-                        
-                        {% if story is mapping %}
-                            <!-- Handle dictionary format -->
-                            {% if story.title %}
-                            <h3 class="story-title">
-                                {% if story.link %}
-                                <a href="{{ story.link }}">{{ story.title }}</a>
-                                {% else %}
-                                {{ story.title }}
-                                {% endif %}
-                            </h3>
-                            {% endif %}
-                            
-                            {% if story.summary %}
-                            <p class="story-summary">{{ story.summary }}</p>
-                            {% endif %}
-                            
-                            {% if story.takeaway %}
-                            <div class="story-takeaway">
-                                <div class="takeaway-label">KEY TAKEAWAY</div>
-                                <div class="takeaway-text">{{ story.takeaway }}</div>
-                            </div>
-                            {% endif %}
-                            
-                            {% if story.link %}
-                            <a href="{{ story.link }}" class="read-more">Read full story →</a>
-                            {% endif %}
-                        {% else %}
-                            <!-- Handle string format -->
-                            {{ story | safe }}
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="story-card">
-                        <h3 class="story-title">No Stories Available</h3>
-                        <p class="story-summary">We couldn't retrieve any stories for this newsletter issue. Please check back later or contact support if this issue persists.</p>
-                    </div>
-                {% endif %}
-                
-                <!-- Sponsor CTA Block -->
-                {% if sponsor and sponsor.name %}
-                <div class="divider"></div>
-                
-                <div class="sponsor-block">
-                    <div class="sponsor-label">PARTNER MESSAGE</div>
-                    <h3 class="sponsor-title">{{ sponsor.name }}</h3>
-                    <p class="sponsor-message">{{ sponsor.message or "Thank you to our sponsor for supporting this newsletter." }}</p>
-                    {% if sponsor.link %}
-                    <a href="{{ sponsor.link }}" class="sponsor-cta">Learn More</a>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-            
-            <!-- Footer -->
-            <div class="footer">
-                <div class="footer-content">
-                    <div class="footer-logo">PlannerPulse</div>
-                    
-                    <div class="footer-links">
-                        <a href="#">About</a>
-                        <a href="#">Archive</a>
-                        <a href="#">Advertise</a>
-                        <a href="#">Contact</a>
-                    </div>
-                    
-                    <div class="footer-meta">
-                        You're receiving this because you're a verified planner in the Connect Meetings community.<br>
-                        <a href="#">Unsubscribe</a> · <a href="#">Update preferences</a><br>
-                        © 2025 PlannerPulse. All rights reserved.
-                    </div>
-                </div>
-            </div>
+<div class="wrapper">
+<div class="email-outer">
+
+    <!-- Masthead -->
+    <div class="masthead">
+        <div class="masthead-inner">
+            <div class="pub-eyebrow">Informa Connect &nbsp;|&nbsp; Meetings &amp; Events Intelligence</div>
+            <div class="pub-name">{{ title or 'Planner Pulse' }}</div>
+            <div class="pub-tagline">The Meeting Industry's Essential Daily Brief</div>
+        </div>
+        <div class="masthead-meta">
+            <span>{{ generation_date or 'Today\'s Edition' }}</span>
+            <span>MEETINGS &nbsp;·&nbsp; VENUES &nbsp;·&nbsp; EVENTS &nbsp;·&nbsp; TECHNOLOGY</span>
         </div>
     </div>
+
+    <!-- Stories -->
+    <div class="content">
+        <div class="section-label">Today's Briefing</div>
+
+        {% if stories %}
+        {% for story in stories %}
+        <div class="article">
+            {% if story is mapping %}
+
+            <div class="article-kicker">Story {{ loop.index }}</div>
+
+            {% if story.title %}
+            <div class="article-headline">
+                {% if story.link %}
+                <a href="{{ story.link }}">{{ story.title }}</a>
+                {% else %}
+                {{ story.title }}
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if story.source %}
+            <div class="article-source">Source: {{ story.source }}</div>
+            {% endif %}
+
+            {% if story.summary %}
+            <div class="article-body">{{ story.summary }}</div>
+            {% endif %}
+
+            {% if story.takeaway %}
+            <div class="insight-block">
+                <div class="insight-label">Key Insight</div>
+                <div class="insight-text">{{ story.takeaway }}</div>
+            </div>
+            {% endif %}
+
+            {% if story.link %}
+            <a href="{{ story.link }}" class="article-cta">Continue reading &rarr;</a>
+            {% endif %}
+
+            {% else %}
+            {{ story | safe }}
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="article">
+            <div class="article-body">No stories available for this edition. Please check back later.</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sponsor -->
+    {% if sponsor and sponsor.name %}
+    <div class="sponsor-wrapper">
+        <div class="sponsor-inner">
+            <div class="sponsor-eyebrow">Partner Message</div>
+            <div class="sponsor-name">{{ sponsor.name }}</div>
+            <div class="sponsor-message">{{ sponsor.message }}</div>
+            {% if sponsor.link %}
+            <a href="{{ sponsor.link }}" class="sponsor-link">Learn more</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="footer-pub">Planner Pulse</div>
+        <div class="footer-links">
+            <a href="#">About</a>
+            <a href="#">Archive</a>
+            <a href="#">Advertise</a>
+            <a href="#">Contact</a>
+        </div>
+        <div class="footer-legal">
+            You are receiving this briefing as a member of the Informa Connect Meetings community.<br>
+            <a href="#">Unsubscribe</a> &nbsp;&middot;&nbsp; <a href="#">Manage preferences</a><br>
+            &copy; {{ generation_date[-4:] if generation_date else '2026' }} Informa Connect. All rights reserved.
+        </div>
+    </div>
+
+</div>
+</div>
 </body>
 </html>

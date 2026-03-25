@@ -41,6 +41,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="/editorial">
+                                <i data-feather="edit-3"></i>
+                                Editorial Queue
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="#settings">
                                 <i data-feather="settings"></i>
                                 Settings
@@ -411,30 +417,36 @@
         // Initialize Feather icons
         feather.replace();
 
-        // Tab navigation
+        // Tab navigation — only intercept hash-based section links, let real URLs navigate normally
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', function(e) {
+                const target = this.getAttribute('href');
+                // Only intercept in-page section anchors
+                if (!target || !target.startsWith('#')) return;
+
                 e.preventDefault();
-                
+
                 // Remove active class from all links
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-                
-                // Add active class to clicked link
                 this.classList.add('active');
-                
+
                 // Hide all sections
                 document.querySelectorAll('.content-section').forEach(section => {
                     section.style.display = 'none';
                 });
-                
+
                 // Show the relevant section
-                const target = this.getAttribute('href');
                 if (target === '#dashboard') {
                     document.getElementById('dashboard-section').style.display = 'block';
                 } else if (target === '#settings') {
                     document.getElementById('settings-section').style.display = 'block';
                 }
             });
+        });
+
+        // Ensure dashboard section is always visible on initial load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('dashboard-section').style.display = 'block';
         });
 
         function generateNewsletter() {
