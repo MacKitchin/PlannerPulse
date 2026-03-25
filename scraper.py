@@ -34,7 +34,21 @@ def fetch_articles(rss_urls: List[str], max_per_feed: int = DEFAULT_MAX_ARTICLES
     for url in rss_urls:
         try:
             logger.info(f"Fetching from RSS feed: {url}")
-            feed = feedparser.parse(url)
+            # Fetch the feed content with an explicit timeout to prevent hangs
+            try:
+                response = requests.get(
+                    url,
+                    timeout=HTTP_REQUEST_TIMEOUT_SECONDS,
+                    headers={'User-Agent': 'Mozilla/5.0 (compatible; PlannerPulse/1.0)'},
+                )
+                response.raise_for_status()
+                feed = feedparser.parse(response.text)
+            except requests.exceptions.Timeout:
+                logger.error(f"Timeout fetching RSS feed {url}")
+                continue
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to fetch RSS feed {url}: {e}")
+                continue
             
             if feed.bozo:
                 logger.warning(f"RSS feed may have issues: {url}")

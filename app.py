@@ -13,6 +13,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import url_has_allowed_host_and_scheme
 
 from main import run_newsletter_generation, load_config
 from database import (
@@ -81,6 +82,12 @@ if not secret_key:
 
 app.secret_key = secret_key
 
+# Session cookie security hardening
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Enable SESSION_COOKIE_SECURE only when not in debug mode (requires HTTPS in production)
+app.config['SESSION_COOKIE_SECURE'] = not os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes')
+
 # Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -103,7 +110,7 @@ login_manager.login_message_category = 'error'
 # Single-user model — credentials sourced from environment variables
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@plannerpulse.com')
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH', '')  # bcrypt hash
-ADMIN_PASSWORD_PLAIN = os.environ.get('ADMIN_PASSWORD', 'changeme')  # plain fallback for dev
+ADMIN_PASSWORD_PLAIN = os.environ.get('ADMIN_PASSWORD', '')  # plain text fallback (dev only)
 
 class EditorUser(UserMixin):
     """In-memory user object (single-user for MVP)."""
@@ -123,8 +130,22 @@ def load_user(user_id):
 def _check_password(plain: str) -> bool:
     if ADMIN_PASSWORD_HASH:
         import bcrypt
-        return bcrypt.checkpw(plain.encode(), ADMIN_PASSWORD_HASH.encode())
+        return bcrypt.checkpw(plain.encode('utf-8'), ADMIN_PASSWORD_HASH.encode('utf-8'))
+    if not ADMIN_PASSWORD_PLAIN:
+        logger.error(
+            "No admin password configured. "
+            "Set ADMIN_PASSWORD_HASH (bcrypt hash) or ADMIN_PASSWORD environment variable."
+        )
+        return False
     return plain == ADMIN_PASSWORD_PLAIN
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Return JSON for API routes; redirect to login for browser routes."""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Authentication required'}), 401
+    return redirect(url_for('login', next=request.url))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -136,7 +157,10 @@ def login():
         if email == ADMIN_EMAIL.lower() and _check_password(password):
             login_user(_editor_user, remember=True)
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
+            # Validate redirect target to prevent open-redirect attacks
+            if not next_page or not url_has_allowed_host_and_scheme(next_page, {request.host}):
+                next_page = url_for('index')
+            return redirect(next_page)
         flash('Invalid email or password.', 'error')
     return render_template('login.html')
 
@@ -192,6 +216,7 @@ def index():
         return render_template('preview.html', config={}, stats={}, recent_newsletter=None)
 
 @app.route('/generate', methods=['POST'])
+@login_required
 def generate_newsletter():
     """Generate new newsletter"""
     try:
@@ -294,6 +319,7 @@ def api_stats():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/reset-history', methods=['POST'])
+@login_required
 def reset_article_history():
     """Reset article history (for testing) - database version"""
     try:
@@ -309,6 +335,7 @@ def reset_article_history():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/rotate-sponsor', methods=['POST'])
+@login_required
 def rotate_sponsor():
     """Manually rotate to next sponsor - database version"""
     try:
@@ -326,6 +353,7 @@ def rotate_sponsor():
 
 # Settings API endpoints
 @app.route('/api/settings/rss', methods=['POST'])
+@login_required
 def add_rss_source():
     """Add a new RSS source"""
     try:
@@ -365,6 +393,7 @@ def add_rss_source():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/rss', methods=['DELETE'])
+@login_required
 def remove_rss_source():
     """Remove an RSS source"""
     try:
@@ -404,6 +433,7 @@ def remove_rss_source():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/sponsor', methods=['POST'])
+@login_required
 def add_sponsor():
     """Add a new sponsor"""
     try:
@@ -461,6 +491,7 @@ def add_sponsor():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/sponsor', methods=['DELETE'])
+@login_required
 def remove_sponsor():
     """Remove a sponsor"""
     try:
@@ -499,6 +530,7 @@ def remove_sponsor():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/sponsor/toggle', methods=['POST'])
+@login_required
 def toggle_sponsor():
     """Toggle sponsor active status"""
     try:
@@ -540,6 +572,7 @@ def toggle_sponsor():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/email', methods=['POST'])
+@login_required
 def update_email_settings():
     """Update email and content settings"""
     try:
@@ -568,6 +601,7 @@ def update_email_settings():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/api-key', methods=['POST'])
+@login_required
 def save_api_key():
     """Save OpenAI API key to configuration"""
     try:
@@ -600,6 +634,7 @@ def save_api_key():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/api-key-status')
+@login_required
 def api_key_status():
     """Check if API key is configured and not a placeholder"""
     try:
@@ -617,6 +652,7 @@ def api_key_status():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings/test-api', methods=['POST'])
+@login_required
 def test_api_connection():
     """Test OpenAI API connection"""
     try:
@@ -690,6 +726,7 @@ def editorial():
 
 
 @app.route('/api/editorial/drafts')
+@login_required
 def api_editorial_drafts():
     """List drafts, optionally filtered by status."""
     from database import DraftManager
@@ -703,6 +740,7 @@ def api_editorial_drafts():
 
 
 @app.route('/api/editorial/draft/<int:draft_id>')
+@login_required
 def api_get_draft(draft_id):
     """Full detail for a single draft."""
     from database import DraftManager
@@ -714,6 +752,7 @@ def api_get_draft(draft_id):
 
 
 @app.route('/api/editorial/approve/<int:draft_id>', methods=['POST'])
+@login_required
 def api_approve_draft(draft_id):
     """Approve a draft."""
     from database import DraftManager
@@ -724,6 +763,7 @@ def api_approve_draft(draft_id):
 
 
 @app.route('/api/editorial/reject/<int:draft_id>', methods=['POST'])
+@login_required
 def api_reject_draft(draft_id):
     """Reject a draft with a reason."""
     from database import DraftManager
@@ -738,6 +778,7 @@ def api_reject_draft(draft_id):
 
 
 @app.route('/api/editorial/edit/<int:draft_id>', methods=['POST'])
+@login_required
 def api_edit_draft(draft_id):
     """Save editor's inline modifications to headline / body."""
     from database import DraftManager
@@ -752,6 +793,7 @@ def api_edit_draft(draft_id):
 
 
 @app.route('/api/editorial/regenerate/<int:draft_id>', methods=['POST'])
+@login_required
 def api_regenerate_draft(draft_id):
     """Regenerate a draft with editor instructions."""
     from database import DraftManager
@@ -785,6 +827,7 @@ def api_regenerate_draft(draft_id):
 
 
 @app.route('/api/editorial/export/<int:draft_id>/<fmt>')
+@login_required
 def api_export_draft(draft_id, fmt):
     """Export an approved draft as html, markdown, or text."""
     from database import DraftManager
@@ -923,6 +966,7 @@ def analytics():
 
 
 @app.route('/api/editorial/stats')
+@login_required
 def api_editorial_stats():
     """Draft queue stats for the editorial dashboard header."""
     from database import DraftManager
