@@ -9,6 +9,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import logging
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -223,7 +226,7 @@ def init_database():
     """Initialize database tables"""
     engine = create_engine_instance()
     Base.metadata.create_all(engine)
-    print("Database tables created successfully")
+    logger.info("Database tables created successfully")
 
 def migrate_from_json():
     """Migrate existing JSON data to database"""
@@ -275,11 +278,11 @@ def migrate_from_json():
                 session.add(rss_source)
         
         session.commit()
-        print("Successfully migrated JSON data to database")
+        logger.info("Successfully migrated JSON data to database")
         
     except Exception as e:
         session.rollback()
-        print(f"Error migrating data: {e}")
+        logger.error(f"Error migrating data: {e}")
     finally:
         session.close()
 
